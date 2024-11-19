@@ -5,8 +5,6 @@ const Lexer = @import("lexer.zig").Lexer;
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
-const prompt = ">> ";
-
 pub fn start() void {
     stdout.print("Hello! This is the monkey programming language!\nFeel free to type in commands.\n", .{}) catch {};
     loop();
@@ -14,9 +12,9 @@ pub fn start() void {
 }
 
 fn loop() void {
-    var buf: [1000]u8 = undefined;
+    var buf: [2048]u8 = undefined;
 
-    stdout.print("{s}", .{prompt}) catch {};
+    stdout.print("{s}", .{">> "}) catch {};
 
     if (stdin.readUntilDelimiterOrEof(&buf, '\n')) |input| {
         if (input) |str| {
