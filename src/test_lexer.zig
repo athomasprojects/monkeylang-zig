@@ -41,26 +41,29 @@ test "next token" {
     const str =
         \\=      + -/    ,;{<][>)(   !-512.79 let    if else fn
         \\ true false
-        \\  _foo_! !bar__
+        \\  _foo_! !bar_baz__
         \\"string!%"
         \\ != == === >=
         \\return * =!=
     ;
-    const tokens = [_]Token{ .Assign, .Plus, .Minus, .Slash, .Comma, .Semicolon, .LeftBrace, .LessThan, .RightBracket, .LeftBracket, .GreaterThan, .RightParen, .LeftParen, .Bang, .Minus, .{ .Integer = 512 }, .Illegal, .{ .Integer = 79 }, .Let, .If, .Else, .Function, .True, .False, .{ .Ident = "_foo_" }, .Bang, .Bang, .{ .Ident = "bar__" }, .{ .String = "string!%" }, .NotEqual, .Equal, .Equal, .Assign, .GreaterThan, .Assign, .Return, .Asterisk, .Assign, .NotEqual };
+    const expected_tokens = [_]Token{ .Assign, .Plus, .Minus, .Slash, .Comma, .Semicolon, .LeftBrace, .LessThan, .RightBracket, .LeftBracket, .GreaterThan, .RightParen, .LeftParen, .Bang, .Minus, .{ .Integer = 512 }, .Illegal, .{ .Integer = 79 }, .Let, .If, .Else, .Function, .True, .False, .{ .Ident = "_foo_" }, .Bang, .Bang, .{ .Ident = "bar_baz__" }, .{ .String = "string!%" }, .NotEqual, .Equal, .Equal, .Assign, .GreaterThan, .Assign, .Return, .Asterisk, .Assign, .NotEqual };
     var lexer = Lexer.init(str);
     var idx: usize = 0;
     while (lexer.nextToken()) |next_tok| : (idx += 1) {
-        const tok = tokens[idx];
+        const expected_tok = expected_tokens[idx];
         switch (next_tok) {
-            .Ident, .String => |ident| {
-                switch (tok) {
-                    .Ident, .String => |v| try expect(std.mem.eql(u8, ident, v)),
-                    else => try expect(std.meta.eql(next_tok, tokens[idx])),
+            .Ident, .String => |actual_slice| {
+                switch (expected_tok) {
+                    .Ident, .String => |expected_slice| {
+                        try expect(std.mem.eql(u8, @tagName(expected_tok), @tagName(next_tok)));
+                        try expect(std.mem.eql(u8, expected_slice, actual_slice));
+                    },
+                    else => try expect(std.meta.eql(next_tok, expected_tok)),
                 }
             },
-            else => try expect(std.meta.eql(next_tok, tok)),
+            else => try expect(std.meta.eql(next_tok, expected_tok)),
         }
         // next_tok.debugPrint();
-        // tokens[idx].debugPrint();
+        // expected_tok.debugPrint();
     }
 }
