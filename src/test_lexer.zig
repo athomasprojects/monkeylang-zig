@@ -44,8 +44,9 @@ test "next token" {
         \\  _foo_! !bar__
         \\"string!%"
         \\ != == === >=
+        \\return * =!=
     ;
-    const tokens = [_]Token{ .Assign, .Plus, .Minus, .Slash, .Comma, .Semicolon, .LeftBrace, .LessThan, .RightBracket, .LeftBracket, .GreaterThan, .RightParen, .LeftParen, .Bang, .Minus, .{ .Integer = 512 }, .Illegal, .{ .Integer = 79 }, .Let, .If, .Else, .Function, .True, .False, .{ .Ident = "_foo_" }, .Bang, .Bang, .{ .Ident = "bar__" }, .{ .String = "string!%" }, .NotEqual, .Equal, .Equal, .Assign, .GreaterThan, .Assign };
+    const tokens = [_]Token{ .Assign, .Plus, .Minus, .Slash, .Comma, .Semicolon, .LeftBrace, .LessThan, .RightBracket, .LeftBracket, .GreaterThan, .RightParen, .LeftParen, .Bang, .Minus, .{ .Integer = 512 }, .Illegal, .{ .Integer = 79 }, .Let, .If, .Else, .Function, .True, .False, .{ .Ident = "_foo_" }, .Bang, .Bang, .{ .Ident = "bar__" }, .{ .String = "string!%" }, .NotEqual, .Equal, .Equal, .Assign, .GreaterThan, .Assign, .Return, .Asterisk, .Assign, .NotEqual };
     var lexer = Lexer.init(str);
     var idx: usize = 0;
     while (lexer.nextToken()) |next_tok| : (idx += 1) {
