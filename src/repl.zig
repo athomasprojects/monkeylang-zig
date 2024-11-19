@@ -2,7 +2,6 @@
 
 const std = @import("std");
 const Lexer = @import("lexer.zig").Lexer;
-const Allocator = std.mem.Allocator;
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
