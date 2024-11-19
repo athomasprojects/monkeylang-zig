@@ -37,6 +37,17 @@ test "init lexer" {
     }
 }
 
+// Note: `std.meta.eql` does not work for structs containing fields that are
+// slices. This is because slices are 'fat pointers'. So, for example, if
+// we are comparing two fields whose contents are slices, then `std.meta.eql`
+// will compare their their lengths and _pointers_, NOT their contents! The
+// pointers might not point to the same locations in memory, even if they
+// happen to have the same contents. Since meaning of pointer comparison can be
+// somewhat ambiguous and therefore is not handled by `std.meta.eql`. Instead
+// the user has to implement the comparison.
+//
+// The `std.meta.eql` docs explicitly states that pointers are NOT followed! (https://ziglang.org/documentation/master/std/#std.meta.eql)
+// See also: https://www.reddit.com/r/Zig/comments/17ug7l7/zigs_stdmetaeql_fails_to_find_tagged_union/
 test "next token" {
     const str =
         \\=      + -/    ,;{<][>)(   !-512.79 let    if else fn
