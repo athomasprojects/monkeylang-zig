@@ -10,6 +10,7 @@ pub const Lexer = struct {
     ch: ?u8 = null,
     length: usize = 0,
 
+    /// Creates a new lexer from the string `input`.
     pub fn init(input: []const u8) Lexer {
         return switch (input.len) {
             0 => Lexer{
