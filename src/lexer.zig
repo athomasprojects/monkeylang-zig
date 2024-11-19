@@ -2,10 +2,11 @@
 
 const std = @import("std");
 const token = @import("token.zig");
+const Token = token.Token;
 
 pub const Lexer = struct {
     input: []const u8,
-    position: usize = 0,
+    pos: usize = 0,
     ch: ?u8 = null,
     length: usize = 0,
 
@@ -18,11 +19,12 @@ pub const Lexer = struct {
         };
     }
 
-    /// Writes the string representation of the `Lexer` to the `writer`.
+    /// Pretty printing (intended for print debugging).
+    /// Writes the string representation of the `Lexer` to the stderr.
     pub fn debugPrint(self: Lexer) void {
         std.debug.print("Lexer{{\n", .{});
         std.debug.print("    input: \"{s}\",\n", .{self.input});
-        std.debug.print("    position: {},\n", .{self.position});
+        std.debug.print("    pos: {},\n", .{self.pos});
         if (self.ch) |ch| {
             std.debug.print("    ch: '{c}',\n", .{ch});
         } else {
@@ -32,26 +34,18 @@ pub const Lexer = struct {
         std.debug.print("}}\n", .{});
     }
 
-    pub fn advance(self: *Lexer) void {
+    fn advance(self: *Lexer) void {
         if (self.length > 0) {
-            if (self.position >= self.length - 1) {
+            if (self.pos >= self.length - 1) {
                 self.ch = null;
             } else {
-                self.position += 1;
-                self.ch = self.input[self.position];
+                self.pos += 1;
+                self.ch = self.input[self.pos];
             }
         }
     }
 
-    fn is_string(ch: u8) bool {
-        return ch == '"';
-    }
-
-    fn is_letter(ch: u8) bool {
-        return std.ascii.isAlphabetic(ch) or ch == '_';
-    }
-
-    fn scan_until(self: *Lexer, condition: fn (ch: u8) bool) void {
+    fn scanUntil(self: *Lexer, condition: fn (ch: u8) bool) void {
         while (self.ch) |ch| {
             if (condition(ch)) {
                 self.advance();
@@ -61,7 +55,167 @@ pub const Lexer = struct {
         }
     }
 
-    pub fn skip_whitespace(self: *Lexer) void {
-        self.scan_until(std.ascii.isWhitespace);
+    fn skipWhitespace(self: *Lexer) void {
+        self.scanUntil(std.ascii.isWhitespace);
+    }
+
+    fn takeWhile(self: Lexer, condition: fn (u8) bool) []const u8 {
+        var count: usize = 0;
+        for (self.input[self.pos..self.length]) |ch| {
+            // std.debug.print("{c}\n", .{ch});
+            if (condition(ch)) {
+                count += 1;
+            } else {
+                break;
+            }
+        }
+        return self.input[self.pos .. self.pos + count];
+    }
+
+    fn readIdentifier(self: *Lexer) Token {
+        const ident = self.takeWhile(isLetter);
+        self.pos += ident.len - 1;
+        self.advance();
+        return token.lookupIdent(ident);
+    }
+
+    fn readString(self: *Lexer) Token {
+        self.advance();
+        const str = self.takeWhile(struct {
+            pub fn call(ch: u8) bool {
+                return !isString(ch);
+            }
+        }.call);
+        self.pos += str.len;
+        self.advance();
+        if (self.pos >= self.length) {
+            return .Illegal;
+        } else {
+            return .{ .String = str };
+        }
+    }
+
+    fn readNumber(self: *Lexer) Token {
+        const literal = self.takeWhile(std.ascii.isDigit);
+        self.pos += literal.len - 1;
+        self.advance();
+        if (std.fmt.parseInt(i32, literal, 10)) |int| {
+            return .{ .Integer = int };
+        } else |_| {
+            return .Illegal;
+        }
+    }
+
+    fn peekChar(self: *Lexer) ?u8 {
+        const remaining_chars = self.length - self.pos - 1;
+        if (remaining_chars >= 1) {
+            return self.input[self.pos + 1];
+        } else {
+            return null;
+        }
+    }
+
+    fn twoCharToken(self: *Lexer, match: u8, default_token: Token, two_char_token: Token) Token {
+        if (self.peekChar()) |peeked| {
+            if (peeked == match) {
+                self.advance();
+                self.advance();
+                return two_char_token;
+            }
+        }
+        self.advance();
+        return default_token;
+    }
+
+    /// Updates the lexer state and returns the next token in the stream if it exists.
+    pub fn nextToken(self: *Lexer) ?Token {
+        self.skipWhitespace();
+        if (self.ch) |ch| {
+            switch (ch) {
+                '=' => return self.twoCharToken('=', .Assign, .Equal),
+                '!' => return self.twoCharToken('=', .Bang, .NotEqual),
+                '-' => {
+                    self.advance();
+                    return .Minus;
+                },
+                '+' => {
+                    self.advance();
+                    return .Plus;
+                },
+                '*' => {
+                    self.advance();
+                    return .Asterisk;
+                },
+                '/' => {
+                    self.advance();
+                    return .Slash;
+                },
+                '(' => {
+                    self.advance();
+                    return .LeftParen;
+                },
+                ')' => {
+                    self.advance();
+                    return .RightParen;
+                },
+                '{' => {
+                    self.advance();
+                    return .LeftBrace;
+                },
+                '}' => {
+                    self.advance();
+                    return .RightBrace;
+                },
+                '[' => {
+                    self.advance();
+                    return .LeftBracket;
+                },
+                ']' => {
+                    self.advance();
+                    return .RightBracket;
+                },
+                '<' => {
+                    self.advance();
+                    return .LessThan;
+                },
+                '>' => {
+                    self.advance();
+                    return .GreaterThan;
+                },
+                ',' => {
+                    self.advance();
+                    return .Comma;
+                },
+                ';' => {
+                    self.advance();
+                    return .Semicolon;
+                },
+                '"' => {
+                    return self.readString();
+                },
+                else => {
+                    if (isLetter(ch)) {
+                        return self.readIdentifier();
+                    }
+
+                    if (std.ascii.isDigit(ch)) {
+                        return self.readNumber();
+                    }
+
+                    self.advance();
+                    return .Illegal;
+                },
+            }
+        } else {
+            return null;
+        }
     }
 };
+
+fn isString(ch: u8) bool {
+    return ch == '"';
+}
+
+fn isLetter(ch: u8) bool {
+    return ch == '_' or std.ascii.isAlphabetic(ch);
+}

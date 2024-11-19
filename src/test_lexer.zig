@@ -1,6 +1,7 @@
 const std = @import("std");
 const expect = std.testing.expect;
 const Lexer = @import("lexer.zig").Lexer;
+const Token = @import("token.zig").Token;
 
 const input =
     \\let five = 5;
@@ -27,41 +28,38 @@ test "init lexer" {
     };
     const vals = [_]Lexer{ .{
         .input = "",
-        .position = 0,
+        .pos = 0,
         .ch = null,
-    }, .{ .input = input, .position = 0, .ch = input[0], .length = input.len } };
+    }, .{ .input = input, .pos = 0, .ch = input[0], .length = input.len } };
     for (lexers, vals) |lexer, val| {
         // lexer.debugPrint();
         try expect(std.meta.eql(lexer, val));
     }
 }
 
-test "advance lexer" {
-    var lexer1 = Lexer.init("");
-    var lexer2 = Lexer.init(input);
-
-    try expect(std.meta.eql(lexer1, Lexer{ .input = "" }));
-    lexer1.advance();
-    try expect(std.meta.eql(lexer1, Lexer{
-        .input = "",
-    }));
-
-    // lexer1.debugPrint();
-    // lexer2.debugPrint();
-    try expect(std.meta.eql(lexer2, Lexer{ .input = input, .position = 0, .ch = input[0], .length = input.len }));
-    lexer2.advance();
-    try expect(std.meta.eql(lexer2, Lexer{ .input = input, .position = 1, .ch = input[1], .length = input.len }));
-    // lexer2.debugPrint();
-}
-
-test "skip whitespace" {
-    var lexer1 = Lexer.init("");
-    const str = "   hello";
-    var lexer2 = Lexer.init(str);
-
-    lexer1.skip_whitespace();
-    lexer2.skip_whitespace();
-
-    try expect(std.meta.eql(lexer1, Lexer{ .input = "" }));
-    try expect(std.meta.eql(lexer2, Lexer{ .input = str, .position = 3, .ch = 'h', .length = str.len }));
+test "next token" {
+    const str =
+        \\=      + -/    ,;{<][>)(   !-512.79 let    if else fn
+        \\ true false
+        \\  _foo_! !bar__
+        \\"string!%"
+        \\ != == === >=
+    ;
+    const tokens = [_]Token{ .Assign, .Plus, .Minus, .Slash, .Comma, .Semicolon, .LeftBrace, .LessThan, .RightBracket, .LeftBracket, .GreaterThan, .RightParen, .LeftParen, .Bang, .Minus, .{ .Integer = 512 }, .Illegal, .{ .Integer = 79 }, .Let, .If, .Else, .Function, .True, .False, .{ .Ident = "_foo_" }, .Bang, .Bang, .{ .Ident = "bar__" }, .{ .String = "string!%" }, .NotEqual, .Equal, .Equal, .Assign, .GreaterThan, .Assign };
+    var lexer = Lexer.init(str);
+    var idx: usize = 0;
+    while (lexer.nextToken()) |next_tok| : (idx += 1) {
+        const tok = tokens[idx];
+        switch (next_tok) {
+            .Ident, .String => |ident| {
+                switch (tok) {
+                    .Ident, .String => |v| try expect(std.mem.eql(u8, ident, v)),
+                    else => try expect(std.meta.eql(next_tok, tokens[idx])),
+                }
+            },
+            else => try expect(std.meta.eql(next_tok, tok)),
+        }
+        // next_tok.debugPrint();
+        // tokens[idx].debugPrint();
+    }
 }

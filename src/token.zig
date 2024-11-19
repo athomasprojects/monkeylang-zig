@@ -25,6 +25,7 @@ pub const Token = union(enum) {
     LeftBracket: void,
     RightBracket: void,
     LessThan: void,
+    GreaterThan: void,
     Comma: void,
     Semicolon: void,
     // Keywords
@@ -35,6 +36,13 @@ pub const Token = union(enum) {
     True: void,
     False: void,
     Return: void,
+
+    pub fn debugPrint(self: Token) void {
+        switch (self) {
+            .Ident, .String => |str| std.debug.print("token.Token{{ .{s} = \"{s}\" }}\n", .{ @tagName(self), str }),
+            else => std.debug.print("{}\n", .{self}),
+        }
+    }
 };
 
 const IdentMap = StaticStringMap(Token).initComptime(.{
