@@ -90,11 +90,9 @@ pub const Lexer = struct {
                     if (isLetter(ch)) {
                         return self.readIdentifier();
                     }
-
                     if (std.ascii.isDigit(ch)) {
                         return self.readNumber();
                     }
-
                     self.advance();
                     return .Illegal;
                 },
