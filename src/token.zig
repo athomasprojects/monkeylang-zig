@@ -1,5 +1,3 @@
-// The Lexer generates tokens from an input stream of bytes
-
 const std = @import("std");
 
 const StaticStringMap = std.static_string_map.StaticStringMap;
