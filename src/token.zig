@@ -52,7 +52,7 @@ pub const Token = union(enum) {
     }
 };
 
-const IdentMap = StaticStringMap(Token).initComptime(.{
+const KeywordMap = StaticStringMap(Token).initComptime(.{
     .{ "let", .Let },
     .{ "fn", .Function },
     .{ "if", .If },
@@ -62,6 +62,7 @@ const IdentMap = StaticStringMap(Token).initComptime(.{
     .{ "return", .Return },
 });
 
+/// Returns the corresponding keyword token if the string is a keyword, otherwise returns and identifier token.
 pub fn lookupIdent(str: []const u8) Token {
-    return IdentMap.get(str) orelse Token{ .Ident = str };
+    return KeywordMap.get(str) orelse Token{ .Ident = str };
 }
