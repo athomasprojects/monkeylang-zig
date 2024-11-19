@@ -3,7 +3,7 @@ const expect = std.testing.expect;
 const token = @import("token.zig");
 const Token = token.Token;
 
-test "identifiers" {
+test "lookup identifiers" {
     const keys = [_][]const u8{ "let", "fn", "if", "else", "true", "false", "return", "does not exist!" };
     for (keys) |key| {
         switch (token.lookupIdent(key)) {
