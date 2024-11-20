@@ -4,13 +4,6 @@ const StaticStringMap = std.static_string_map.StaticStringMap;
 
 pub const Token = union(enum) {
     Illegal: void,
-    // Todo(Token): should we remove the Eof token?
-    // The `nextToken` method returns a `?Token`, null is returned when the end
-    // of the stream has been reached, otherwise a `Token` is returned.
-    // This allows us to use the more idiomatic Zig while loop with payload
-    // capture syntax to tokenize the input stream.
-    // Eof: void,
-    //
     // Identifiers
     Integer: i32,
     Ident: []const u8,
