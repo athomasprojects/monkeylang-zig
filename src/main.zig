@@ -3,6 +3,9 @@ const repl = @import("repl.zig");
 
 pub fn main() void {
     repl.start();
+    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    // defer arena.deinit();
+    // const alloc = arena.allocator();
 }
 
 // Tests
@@ -83,18 +86,19 @@ test "next token" {
     var idx: usize = 0;
     while (lexer.nextToken()) |next_tok| : (idx += 1) {
         const expected_tok = expected_tokens[idx];
-        switch (next_tok) {
-            .Ident, .String => |actual_slice| {
-                switch (expected_tok) {
-                    .Ident, .String => |expected_slice| {
-                        try expect(std.mem.eql(u8, @tagName(expected_tok), @tagName(next_tok)));
-                        try expect(std.mem.eql(u8, expected_slice, actual_slice));
-                    },
-                    else => {},
-                }
-            },
-            else => try expect(std.meta.eql(next_tok, expected_tok)),
-        }
+        try expect(expected_tok.isEqual(next_tok));
+        // switch (next_tok) {
+        //     .Ident, .String => |actual_slice| {
+        //         switch (expected_tok) {
+        //             .Ident, .String => |expected_slice| {
+        //                 try expect(std.mem.eql(u8, @tagName(expected_tok), @tagName(next_tok)));
+        //                 try expect(std.mem.eql(u8, expected_slice, actual_slice));
+        //             },
+        //             else => {},
+        //         }
+        //     },
+        //     else => try expect(std.meta.eql(next_tok, expected_tok)),
+        // }
         // next_tok.debugPrint();
         // expected_tok.debugPrint();
     }

@@ -1,13 +1,13 @@
 const std = @import("std");
 
 const StaticStringMap = std.static_string_map.StaticStringMap;
-
-pub const Token = union(enum) {
-    Illegal,
+pub const TokenTag = enum {
     // Identifiers
-    Integer: i32,
-    Ident: []const u8,
-    String: []const u8,
+    Ident,
+    String,
+    Integer,
+    // Invalid
+    Illegal,
     // Operators
     Assign,
     Plus,
@@ -36,12 +36,62 @@ pub const Token = union(enum) {
     True,
     False,
     Return,
+};
+
+pub const Token = union(TokenTag) {
+    // Identifiers
+    Ident: []const u8,
+    String: []const u8,
+    Integer: i32,
+    // Invalid
+    Illegal: void,
+    // Operators
+    Assign: void,
+    Plus: void,
+    Minus: void,
+    Equal: void,
+    NotEqual: void,
+    Bang: void,
+    Asterisk: void,
+    Slash: void,
+    // Delimiters
+    LeftParen: void,
+    RightParen: void,
+    LeftBrace: void,
+    RightBrace: void,
+    LeftBracket: void,
+    RightBracket: void,
+    LessThan: void,
+    GreaterThan: void,
+    Comma: void,
+    Semicolon: void,
+    // Keywords
+    Let: void,
+    Function: void,
+    If: void,
+    Else: void,
+    True: void,
+    False: void,
+    Return: void,
 
     pub fn debugPrint(self: Token) void {
         switch (self) {
-            .Ident, .String => |str| std.debug.print("token.Token{{ .{s} = \"{s}\" }}\n", .{ @tagName(self), str }),
-            else => std.debug.print("{}\n", .{self}),
+            .Ident, .String => |str| std.debug.print("token.Token{{ .{s} = \"{s}\" }}", .{ @tagName(self), str }),
+            else => std.debug.print("{}", .{self}),
         }
+    }
+
+    pub fn isEqual(self: Token, other: Token) bool {
+        switch (self) {
+            .Ident, .String => |actual_slice| {
+                switch (other) {
+                    .Ident, .String => |other_slice| return std.mem.eql(u8, actual_slice, other_slice) and std.mem.eql(u8, @tagName(self), @tagName(other)),
+                    else => {},
+                }
+            },
+            else => {},
+        }
+        return std.meta.eql(self, other);
     }
 };
 

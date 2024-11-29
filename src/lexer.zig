@@ -207,7 +207,7 @@ pub const Lexer = struct {
             std.debug.print("    ch: null,\n", .{});
         }
         std.debug.print("    length: {},\n", .{self.length});
-        std.debug.print("}}\n", .{});
+        std.debug.print("}}", .{});
     }
 };
 
