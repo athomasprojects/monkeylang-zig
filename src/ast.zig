@@ -61,9 +61,9 @@ pub const Statement = union(enum) {
 
 pub const Expression = union(enum) {
     identifier: Identifier,
-    // integer: Integer,
-    // boolean: Boolean,
-    // string: String,
+    integer: i32,
+    boolean: bool,
+    string: []const u8,
     prefix: PrefixExpression,
     infix: InfixExpression,
     // if_expression: IfExpression,
@@ -77,9 +77,8 @@ pub const Expression = union(enum) {
         std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
         switch (self) {
             .identifier => |identifier| identifier.debugPrint(),
-            // integer => ,
-            // boolean => ,
-            // string => ,
+            .integer, .boolean => |value| std.debug.print("{}", .{value}),
+            .string => |string| std.debug.print("{s}", .{string}),
             // prefix => ,
             // infix => ,
             // if_expression => ,
