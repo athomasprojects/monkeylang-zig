@@ -14,6 +14,8 @@ const ParserError = error{
     ExpectedStatement,
     ExpectedReturn,
     InvalidProgram,
+    InvalidPrefix,
+    InvalidInfix,
 };
 
 const Precedence = enum {
@@ -45,35 +47,6 @@ const Precedence = enum {
     }
 };
 
-const Operator = union(enum) {
-    assign,
-    bang,
-    plus,
-    minus,
-    asterisk,
-    slash,
-    equal,
-    not_equal,
-    less_than,
-    greater_than,
-
-    fn fromToken(token: Token) !Operator {
-        return switch (token) {
-            .Assign => .assign,
-            .Bang => .bang,
-            .Plus => .plus,
-            .Minus => .minus,
-            .Asterisk => .asterisk,
-            .Slash => .slash,
-            .Equal => .equal,
-            .NotEqual => .not_equal,
-            .LessThan => .less_than,
-            .GreaterThan => .greater_than,
-            else => ParserError.ExpectOperator,
-        };
-    }
-};
-
 pub const Parser = struct {
     lexer: *Lexer,
     current_token: ?Token,
@@ -94,9 +67,9 @@ pub const Parser = struct {
 
         while (self.current_token) |_| {
             const s = try self.parseStatement();
+            statements.append(s) catch return ParserError.InvalidProgram;
             s.debugPrint();
             std.debug.print("\n", .{});
-            statements.append(s) catch return ParserError.InvalidProgram;
             self.advance();
         }
         return .{ .statements = statements };
@@ -115,8 +88,8 @@ pub const Parser = struct {
         if (self.current_token) |current_token| {
             return switch (current_token) {
                 .Let => ast.Statement{ .let_statement = try self.parseLetStatement() },
-                // .Return => ast.Statement{ .return_statement = try self.parseReturnStatement() },
-                else => ParserError.ExpectedStatement,
+                .Return => ast.Statement{ .return_statement = try self.parseReturnStatement() },
+                else => ast.ExpressionStatement{ .expression = try self.parseExpressionStatement() },
             };
         } else {
             unreachable;
@@ -144,10 +117,41 @@ pub const Parser = struct {
         return let;
     }
 
-    fn parseReturnStatement(_: *Parser) !ast.ReturnStatement {
-        return ParserError.ExpectedReturn;
+    fn parseReturnStatement(self: *Parser) !ast.ReturnStatement {
+        // Move parser to beginning of expression
+        self.advance();
+        // parse expression...
+        // var expression = try self.ParseExpression(.lowest);
+
+        // Todo: remove `self.peek_token != null` guard once we know how to parse expressions.
+        while (!self.peekTokenIs(.Semicolon)) {
+            if (self.peek_token == null or self.current_token == null) {
+                return ParserError.ExpectedExpression;
+            }
+            self.advance();
+        }
+        const ret: ast.ReturnStatement = .{ .value = .{ .noop = self.current_token.? } };
+        try self.expectPeek(.Semicolon);
+        return ret;
     }
 
+    fn parseExpressionStatement(self: *Parser) !ast.ExpressionStatement {
+        const expr = try self.parseExpression(.lowest);
+        if (self.peekTokenIs(.Semicolon)) {
+            self.advance();
+        }
+        return .{ .expression = expr };
+    }
+
+    fn parseExpression(self: *Parser, precedence: Precedence) !ast.Expression {
+        return ParserError.ExpectedExpression;
+    }
+
+    fn parsePrefixExpression(self: *Parser) !ast.PrefixExpression {}
+
+    fn parseInfixExpression(self: *Parser) !ast.PrefixExpression {}
+
+    // Expressions
     fn parseIdentifier(self: *Parser) !ast.Identifier {
         if (self.current_token) |current_token| {
             return switch (current_token) {
@@ -157,6 +161,31 @@ pub const Parser = struct {
         } else {
             unreachable;
         }
+    }
+
+    fn parsePrefix(self: *Parser, token: TokenTag) !ast.Expression {
+        return switch (token) {
+            .Ident => .{ .identifier = try self.parseIdentifier() },
+            // .Integer => .{ .integer = try self.parseInteger() },
+            // .String => .{ .string = try self.parseString() },
+            // .True, .False => .{ .boolean = try self.parseBoolean() },
+            // .Bang, .Minus => .{ .prefix = try self.parsePrefixExpression() },
+            // .LeftParen => try self.parseGroupedExpression(),
+            // .LeftBracket => .{ .array = try self.parseArray() },
+            // .If => .{ .if_expression = try self.parseIfExpression() },
+            // .Function => .{ .function = try self.parseFunctionLiteral() },
+            else => ParserError.InvalidPrefix,
+        };
+    }
+
+    fn parseInfix(self: *Parser, token: TokenTag, left: *ast.Expression) !ast.Expression {
+        self.advance();
+        return switch (token) {
+            .Plus, .Minus, .Slash, .Asterisk, .Equal, .NotEqual, .LessThan, .GreaterThan => .{ .expression = try self.parseInfixExpression(left) },
+            // .LeftParen => .{ .call = try self.parseCallExpression(left) },
+            // .LeftBracket => .{ .index = try self.parseIndexExpression(left) },
+            else => ParserError.InvalidInfix,
+        };
     }
 
     fn peekTokenIs(self: *Parser, token: TokenTag) bool {

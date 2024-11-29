@@ -93,6 +93,13 @@ pub const Token = union(TokenTag) {
         }
         return std.meta.eql(self, other);
     }
+
+    pub fn isOperator(token: Token) bool {
+        return switch (token) {
+            .Assign, .Bang, .Plus, .Minus, .Asterisk, .Slash, .Equal, .NotEqual, .LessThan, .GreaterThan => true,
+            else => false,
+        };
+    }
 };
 
 const KeywordMap = StaticStringMap(Token).initComptime(.{

@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const Token = @import("token.zig").Token;
+const TokenTag = @import("token.zig").TokenTag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
@@ -44,14 +45,14 @@ pub const Program = struct {
 pub const Statement = union(enum) {
     let_statement: LetStatement,
     return_statement: ReturnStatement,
-    // expression_statement: ExpressionStatement,
+    expression_statement: ExpressionStatement,
     // block_statement: BlockStatement,
 
     pub fn debugPrint(self: Statement) void {
         std.debug.print("ast.Statement{{ .{s} = ", .{@tagName(self)});
         switch (self) {
             .let_statement => |let_statement| let_statement.debugPrint(),
-            // .return_statement => |return_statement| return_statement.debugPrint(),
+            .return_statement => |return_statement| return_statement.debugPrint(),
             else => unreachable,
         }
         std.debug.print(" }}", .{});
@@ -63,8 +64,8 @@ pub const Expression = union(enum) {
     // integer: Integer,
     // boolean: Boolean,
     // string: String,
-    // prefix: PrefixExpression,
-    // infix: InfixExpression,
+    prefix: PrefixExpression,
+    infix: InfixExpression,
     // if_expression: IfExpression,
     // function: Function,
     // call: Call,
@@ -108,6 +109,12 @@ pub const LetStatement = struct {
 
 pub const ReturnStatement = struct {
     value: Expression,
+
+    pub fn debugPrint(self: ReturnStatement) void {
+        std.debug.print("ast.ReturnStatement{{\n    value: ", .{});
+        self.value.debugPrint();
+        std.debug.print("\n}}", .{});
+    }
 };
 
 pub const ExpressionStatement = struct {
@@ -121,4 +128,15 @@ pub const Identifier = struct {
     pub fn debugPrint(self: Identifier) void {
         std.debug.print("ast.Identifier{{ value = \"{s}\" }}", .{self.value});
     }
+};
+
+pub const PrefixExpression = struct {
+    operator: Token,
+    right: Expression,
+};
+
+pub const InfixExpression = struct {
+    left: Expression,
+    operator: Token,
+    right: Expression,
 };
