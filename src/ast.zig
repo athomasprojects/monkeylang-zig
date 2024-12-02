@@ -1,41 +1,13 @@
-// Monkeylang AST
-
 const std = @import("std");
 const Token = @import("token.zig").Token;
 const TokenTag = @import("token.zig").TokenTag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
-// The AST is list of `Statement` nodes that make up the tree.
-// The `Program` node is the root node of the tree.
-//
-// Statement 'list' should be a heap allocated list
-//
-// A `Statement` can be one of the following:
-// 1. Let statement
-// 2. Return statement
-// 3. ExpressionStatement
-// 4. BlockStatement
-
-// Todo:
-// [ ] Parse `Program`
-// [ ] Parse `Let` statement
-// [ ] Parse Return statement
-// [ ] Parse `Expression` statement
-// [ ] Parse `Block` statement
-
-// 1. Parsing let statements
-// `let` statements bint a value to the given identifier
-//
-// let statements have the form:
-// let <identifier> = <expression>;
-//
-// let x = 5;
-
 pub const Node = union(enum) {
-    program: Program,
-    statement: Statement,
-    expression: Expression,
+    program: *Program,
+    statement: *Statement,
+    expression: *Expression,
 };
 
 pub const Program = struct {
@@ -53,7 +25,7 @@ pub const Statement = union(enum) {
         switch (self) {
             .let_statement => |let_statement| let_statement.debugPrint(),
             .return_statement => |return_statement| return_statement.debugPrint(),
-            else => unreachable,
+            .expression_statement => |expr| expr.debugPrint(),
         }
         std.debug.print(" }}", .{});
     }
@@ -61,9 +33,9 @@ pub const Statement = union(enum) {
 
 pub const Expression = union(enum) {
     identifier: Identifier,
-    integer: i32,
-    boolean: bool,
-    string: []const u8,
+    integer: Integer,
+    boolean: Boolean,
+    string: String,
     prefix: PrefixExpression,
     infix: InfixExpression,
     // if_expression: IfExpression,
@@ -71,23 +43,21 @@ pub const Expression = union(enum) {
     // call: Call,
     // array: Array,
     // index: Index,
-    noop: Token,
 
     pub fn debugPrint(self: Expression) void {
         std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
         switch (self) {
             .identifier => |identifier| identifier.debugPrint(),
-            .integer, .boolean => |value| std.debug.print("{}", .{value}),
-            .string => |string| std.debug.print("{s}", .{string}),
-            // prefix => ,
-            // infix => ,
+            .integer => |integer| integer.debugPrint(),
+            .boolean => |boolean| boolean.debugPrint(),
+            .string => |string| string.debugPrint(),
+            .prefix => |prefix| prefix.debugPrint(),
+            .infix => |infix| infix.debugPrint(),
             // if_expression => ,
             // function => ,
             // call => ,
             // array => ,
             // index => ,
-            .noop => |token| token.debugPrint(),
-            // else => unreachable,
         }
         std.debug.print(" }}", .{});
     }
@@ -95,7 +65,7 @@ pub const Expression = union(enum) {
 
 pub const LetStatement = struct {
     name: Identifier,
-    value: Expression,
+    value: *Expression,
 
     pub fn debugPrint(self: LetStatement) void {
         std.debug.print("ast.Identifier{{\n    name: ", .{});
@@ -107,7 +77,7 @@ pub const LetStatement = struct {
 };
 
 pub const ReturnStatement = struct {
-    value: Expression,
+    value: *Expression,
 
     pub fn debugPrint(self: ReturnStatement) void {
         std.debug.print("ast.ReturnStatement{{\n    value: ", .{});
@@ -117,7 +87,13 @@ pub const ReturnStatement = struct {
 };
 
 pub const ExpressionStatement = struct {
-    expression: Expression,
+    expression: *Expression,
+
+    pub fn debugPrint(self: ExpressionStatement) void {
+        std.debug.print("ast.ExpressionStatement{{\n    expression = ", .{});
+        self.expression.debugPrint();
+        std.debug.print("\n}}", .{});
+    }
 };
 
 // Expressions
@@ -129,13 +105,57 @@ pub const Identifier = struct {
     }
 };
 
+pub const Integer = struct {
+    value: i32,
+
+    pub fn debugPrint(self: Integer) void {
+        std.debug.print("{}", .{self});
+    }
+};
+
+pub const Boolean = struct {
+    value: bool,
+
+    pub fn debugPrint(self: Boolean) void {
+        std.debug.print("{}", .{self});
+    }
+};
+
+pub const String = struct {
+    value: []const u8,
+
+    pub fn debugPrint(self: String) void {
+        std.debug.print("ast.String{{ .value = \"{s}\" }}", .{self.value});
+    }
+};
+
 pub const PrefixExpression = struct {
     operator: Token,
-    right: Expression,
+    right: *Expression,
+
+    pub fn debugPrint(self: PrefixExpression) void {
+        std.debug.print("ast.PrefixExpression{{\n", .{});
+        std.debug.print("    operator: ", .{});
+        self.operator.debugPrint();
+        std.debug.print(",\n    right: ", .{});
+        self.right.debugPrint();
+        std.debug.print(" }}", .{});
+    }
 };
 
 pub const InfixExpression = struct {
-    left: Expression,
     operator: Token,
-    right: Expression,
+    left: *Expression,
+    right: *Expression,
+
+    pub fn debugPrint(self: InfixExpression) void {
+        std.debug.print("ast.InfixExpression{{\n", .{});
+        std.debug.print("    operator: ", .{});
+        self.operator.debugPrint();
+        std.debug.print(",\n    left: ", .{});
+        self.left.debugPrint();
+        std.debug.print(",\n    right: ", .{});
+        self.right.debugPrint();
+        std.debug.print(" }}", .{});
+    }
 };

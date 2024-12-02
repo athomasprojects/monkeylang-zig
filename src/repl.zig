@@ -7,17 +7,17 @@ const ast = @import("ast.zig");
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
-pub fn start() void {
+pub fn start() !void {
     stdout.print("Hello! This is the monkey programming language!\nFeel free to type in commands.\n", .{}) catch {};
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    loop(arena.allocator());
+    try loop(arena.allocator());
     return;
 }
 
-fn loop(allocator: std.mem.Allocator) void {
+fn loop(allocator: std.mem.Allocator) !void {
     var buf: [2048]u8 = undefined;
 
     stdout.print("{s}", .{">> "}) catch {};
@@ -28,7 +28,7 @@ fn loop(allocator: std.mem.Allocator) void {
                 var lexer: Lexer = Lexer.init(str);
 
                 var parser: Parser = Parser.init(&lexer, allocator);
-                _ = parser.parse() catch {};
+                _ = try parser.parse();
 
                 // for (program.statements.items) |s| {
                 //     s.debugPrint();
@@ -38,7 +38,7 @@ fn loop(allocator: std.mem.Allocator) void {
                 //     next_tok.debugPrint();
                 //     std.debug.print("\n", .{});
                 // }
-                loop(allocator);
+                try loop(allocator);
             }
         }
     } else |_| {}

@@ -6,7 +6,8 @@ const Lexer = @import("lexer.zig").Lexer;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const ParserError = error{
+pub const ParserError = error{
+    FailedMemAlloc,
     ExpectedOperator,
     ExpectedPeek,
     ExpectedIdentifier,
@@ -22,7 +23,6 @@ const ParserError = error{
 };
 
 const Precedence = enum {
-    // fmt: off
     lowest,
     equals,
     less_greater,
@@ -31,7 +31,6 @@ const Precedence = enum {
     prefix,
     call,
     index,
-    // fmt: on
 
     fn isLessThan(self: Precedence, other: Precedence) bool {
         return @intFromEnum(self) < @intFromEnum(other);
@@ -52,25 +51,30 @@ fn tokenPrecedenceMap(token: Token) Precedence {
 
 pub const Parser = struct {
     lexer: *Lexer,
-    current_token: ?Token,
-    peek_token: ?Token,
+    current_token: ?Token = null,
+    peek_token: ?Token = null,
     allocator: Allocator,
 
     pub fn init(lexer: *Lexer, allocator: Allocator) Parser {
-        return .{
+        var parser: Parser = .{
             .lexer = lexer,
-            .current_token = lexer.nextToken(),
-            .peek_token = lexer.nextToken(),
             .allocator = allocator,
         };
+        parser.advance();
+        parser.advance();
+        return parser;
     }
 
     pub fn parse(self: *Parser) !ast.Program {
         var statements = ArrayList(ast.Statement).init(self.allocator);
 
         while (self.current_token) |_| {
+            if (self.current_token == null or self.peek_token == null) {
+                break;
+            }
             const s = try self.parseStatement();
             statements.append(s) catch return ParserError.InvalidProgram;
+            std.debug.print("\n", .{});
             s.debugPrint();
             std.debug.print("\n", .{});
             self.advance();
@@ -87,138 +91,134 @@ pub const Parser = struct {
         try self.expectPeek(.Semicolon);
     }
 
-    fn parseStatement(self: *Parser) !ast.Statement {
-        if (self.current_token) |current_token| {
-            return switch (current_token) {
-                .Let => ast.Statement{ .let_statement = try self.parseLetStatement() },
-                .Return => ast.Statement{ .return_statement = try self.parseReturnStatement() },
-                else => ast.ExpressionStatement{ .expression = try self.parseExpressionStatement() },
-            };
-        } else {
-            unreachable;
-        }
+    fn parseStatement(self: *Parser) ParserError!ast.Statement {
+        const current_token = self.current_token.?;
+        return switch (current_token) {
+            .Let => ast.Statement{ .let_statement = try self.parseLetStatement() },
+            .Return => ast.Statement{ .return_statement = try self.parseReturnStatement() },
+            else => ast.Statement{ .expression_statement = try self.parseExpressionStatement() },
+        };
     }
 
-    fn parseLetStatement(self: *Parser) !ast.LetStatement {
+    fn parseLetStatement(self: *Parser) ParserError!ast.LetStatement {
         try self.expectPeek(.Ident);
         const name = try self.parseIdentifier();
         try self.expectPeek(.Assign);
+
         // Move parser to beginning of expression
         self.advance();
-        // parse expression...
-        // var expression = try self.ParseExpression(.lowest);
-
-        // Todo: remove `self.peek_token != null` guard once we know how to parse expressions.
-        while (!self.peekTokenIs(.Semicolon)) {
-            if (self.peek_token == null or self.current_token == null) {
-                return ParserError.ExpectedExpression;
-            }
+        const expr = try self.parseExpression(.lowest);
+        if (!self.peekTokenIs(.Semicolon)) {
+            // if (self.peek_token == null or self.current_token == null) {
+            //     return ParserError.ExpectedExpression;
+            // }
             self.advance();
         }
-        const let: ast.LetStatement = .{ .name = name, .value = .{ .noop = self.current_token.? } };
-        try self.expectPeek(.Semicolon);
-        return let;
+        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+        expr_ptr.* = expr;
+        // const let: ast.LetStatement = .{ .name = name, .value = .{ .noop = self.current_token.? } };
+        // try self.expectPeek(.Semicolon);
+        return .{ .name = name, .value = expr_ptr };
     }
 
-    fn parseReturnStatement(self: *Parser) !ast.ReturnStatement {
+    fn parseReturnStatement(self: *Parser) ParserError!ast.ReturnStatement {
         // Move parser to beginning of expression
         self.advance();
-        // parse expression...
-        // var expression = try self.ParseExpression(.lowest);
-
-        // Todo: remove `self.peek_token != null` guard once we know how to parse expressions.
-        while (!self.peekTokenIs(.Semicolon)) {
-            if (self.peek_token == null or self.current_token == null) {
-                return ParserError.ExpectedExpression;
-            }
+        const ret = try self.parseExpression(.lowest);
+        if (!self.peekTokenIs(.Semicolon)) {
+            // if (self.peek_token == null or self.current_token == null) {
+            //     return ParserError.ExpectedExpression;
+            // }
             self.advance();
         }
-        const ret: ast.ReturnStatement = .{ .value = .{ .noop = self.current_token.? } };
-        try self.expectPeek(.Semicolon);
-        return ret;
+        const ret_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+        ret_ptr.* = ret;
+        return .{ .value = ret_ptr };
     }
 
-    fn parseExpressionStatement(self: *Parser) !ast.ExpressionStatement {
+    fn parseExpressionStatement(self: *Parser) ParserError!ast.ExpressionStatement {
         const expr = try self.parseExpression(.lowest);
         if (self.peekTokenIs(.Semicolon)) {
             self.advance();
         }
-        return .{ .expression = expr };
+        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+        expr_ptr.* = expr;
+        return .{ .expression = expr_ptr };
     }
 
-    // Todo: Use explicit error set instead of inferred error set to resolve compiler error for recursive function!
-    // See references listed in output of `zig build -freference=13` to see all 13 function references.
-    fn parseExpression(self: *Parser, precedence: Precedence) !ast.Expression {
+    fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
         if (self.current_token) |current_token| {
             var left_expr = try self.parsePrefix(current_token);
-            var peek_precedence = try self.peekPrecedence();
+            const peek_precedence = try self.peekPrecedence();
             while (!self.peekTokenIs(.Semicolon) and precedence.isLessThan(peek_precedence)) {
+                const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+                left_expr_ptr.* = left_expr;
                 if (self.peek_token) |peek_token| {
-                    left_expr = try self.parseInfix(peek_token, left_expr);
+                    left_expr = try self.parseInfix(peek_token, left_expr_ptr);
                 }
-                peek_precedence = try self.peekPrecedence();
             }
             return left_expr;
-        } else {
-            unreachable;
         }
+        return ParserError.ExpectedExpression;
     }
 
-    fn parsePrefixExpression(self: *Parser) !ast.PrefixExpression {
-        if (self.current_token) |current_token| {
-            if (current_token.isOperator()) {
-                self.advance();
-                return .{ .operator = current_token, .right = try self.parseExpression(.prefix) };
-            } else {
-                return ParserError.InvalidPrefix;
-            }
-        } else {
-            unreachable;
-        }
-    }
-
-    fn parseInfixExpression(self: *Parser, left: ast.Expression) !ast.PrefixExpression {
-        if (self.current_token) |current_token| {
-            if (current_token.isOperator()) {
-                const precedence = tokenPrecedenceMap(current_token);
-                self.advance();
-                const right = try self.parseExpression(precedence);
-                return .{ .left = left, .operator = current_token, .right = right };
-            } else {
-                return ParserError.InvalidInfix;
-            }
-        } else {
-            unreachable;
-        }
-    }
-
-    fn parsePrefix(self: *Parser, token: TokenTag) !ast.Expression {
+    fn parsePrefix(self: *Parser, token: Token) ParserError!ast.Expression {
         return switch (token) {
             .Ident => .{ .identifier = try self.parseIdentifier() },
             .Integer => .{ .integer = try self.parseInteger() },
             .String => .{ .string = try self.parseString() },
-            .True, .False => .{ .boolean = try self.parseBoolean() },
             .Bang, .Minus => .{ .prefix = try self.parsePrefixExpression() },
-            .LeftParen => try self.parseGroupedExpression(),
+            .True, .False => .{ .boolean = try self.parseBoolean() },
+            // .LeftParen => try self.parseGroupedExpression(),
             // .LeftBracket => .{ .array = try self.parseArray() },
             // .If => .{ .if_expression = try self.parseIfExpression() },
             // .Function => .{ .function = try self.parseFunctionLiteral() },
-            else => unreachable,
+            else => ParserError.InvalidPrefix,
         };
     }
 
-    fn parseInfix(self: *Parser, token: TokenTag, left: ast.Expression) !ast.Expression {
+    fn parseInfix(self: *Parser, token: Token, left: *ast.Expression) ParserError!ast.Expression {
         self.advance();
         return switch (token) {
-            .Plus, .Minus, .Slash, .Asterisk, .Equal, .NotEqual, .LessThan, .GreaterThan => .{ .expression = try self.parseInfixExpression(left) },
+            .Plus, .Minus, .Slash, .Asterisk, .Equal, .NotEqual, .LessThan, .GreaterThan => .{ .infix = try self.parseInfixExpression(left) },
             // .LeftParen => .{ .call = try self.parseCallExpression(left) },
             // .LeftBracket => .{ .index = try self.parseIndexExpression(left) },
             else => ParserError.InvalidInfix,
         };
     }
 
+    fn parsePrefixExpression(self: *Parser) ParserError!ast.PrefixExpression {
+        if (self.current_token) |current_token| {
+            if (current_token.isOperator()) {
+                self.advance();
+                const right = try self.parseExpression(.prefix);
+                const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+                right_ptr.* = right;
+                return .{ .operator = current_token, .right = right_ptr };
+            } else {
+                return ParserError.ExpectedOperator;
+            }
+        } else {
+            unreachable;
+        }
+    }
+
+    fn parseInfixExpression(self: *Parser, left: *ast.Expression) ParserError!ast.InfixExpression {
+        if (self.current_token) |current_token| {
+            if (current_token.isOperator()) {
+                const curr_token_precedence = tokenPrecedenceMap(current_token);
+                self.advance();
+                const right = try self.parseExpression(curr_token_precedence);
+                const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+                right_ptr.* = right;
+                return .{ .operator = current_token, .left = left, .right = right_ptr };
+            }
+        }
+        return ParserError.ExpectedOperator;
+    }
+
     // Expressions
-    fn parseIdentifier(self: *Parser) !ast.Identifier {
+    fn parseIdentifier(self: *Parser) ParserError!ast.Identifier {
         if (self.current_token) |current_token| {
             return switch (current_token) {
                 .Ident => |ident| .{ .value = ident },
@@ -229,10 +229,10 @@ pub const Parser = struct {
         }
     }
 
-    fn parseInteger(self: *Parser) !i32 {
+    fn parseInteger(self: *Parser) ParserError!ast.Integer {
         if (self.current_token) |current_token| {
             return switch (current_token) {
-                .Integer => |int| int,
+                .Integer => |int| .{ .value = int },
                 else => ParserError.ExpectedInteger,
             };
         } else {
@@ -240,22 +240,11 @@ pub const Parser = struct {
         }
     }
 
-    fn parseString(self: *Parser) ![]const u8 {
+    fn parseBoolean(self: *Parser) ParserError!ast.Boolean {
         if (self.current_token) |current_token| {
             return switch (current_token) {
-                .String => |str| str,
-                else => ParserError.ExpectedStringLiteral,
-            };
-        } else {
-            unreachable;
-        }
-    }
-
-    fn parseBoolean(self: *Parser) !bool {
-        if (self.current_token) |current_token| {
-            return switch (current_token) {
-                .True => true,
-                .False => false,
+                .True => .{ .value = true },
+                .False => .{ .value = false },
                 else => ParserError.ExpectedBoolean,
             };
         } else {
@@ -263,12 +252,23 @@ pub const Parser = struct {
         }
     }
 
-    fn parseGroupedExpression(self: *Parser) !ast.Expression {
-        self.advance();
-        const expr = try self.parseExpression(.lowest);
-        try self.expectPeek(.RightParen);
-        return expr;
+    fn parseString(self: *Parser) ParserError!ast.String {
+        if (self.current_token) |current_token| {
+            return switch (current_token) {
+                .String => |str| .{ .value = str },
+                else => ParserError.ExpectedStringLiteral,
+            };
+        } else {
+            unreachable;
+        }
     }
+
+    // fn parseGroupedExpression(self: *Parser) !ast.Expression {
+    //     self.advance();
+    //     const expr = try self.parseExpression(.lowest);
+    //     try self.expectPeek(.RightParen);
+    //     return expr;
+    // }
 
     fn peekTokenIs(self: *Parser, token: TokenTag) bool {
         if (self.peek_token) |peek_token| {
@@ -287,7 +287,7 @@ pub const Parser = struct {
     }
 
     /// Advances the parser if `peek_token` matches `expected`. Otherwise returns a `ParserError`.
-    fn expectPeek(self: *Parser, expected: TokenTag) !void {
+    fn expectPeek(self: *Parser, expected: TokenTag) ParserError!void {
         if (self.peekTokenIs(expected)) {
             self.advance();
         } else {
@@ -295,12 +295,19 @@ pub const Parser = struct {
         }
     }
 
-    fn peekPrecedence(self: *Parser) !Precedence {
+    fn peekPrecedence(self: *Parser) ParserError!Precedence {
         if (self.peek_token) |peek_token| {
             return tokenPrecedenceMap(peek_token);
         } else {
             return ParserError.ExpectedPeek;
         }
+    }
+
+    fn currentPrecedence(self: *Parser) ParserError!Precedence {
+        if (self.current_token) |current_token| {
+            return tokenPrecedenceMap(current_token);
+        }
+        return ParserError.ExpectedOperator;
     }
 
     pub fn debugPrint(self: Parser) void {
@@ -314,7 +321,7 @@ pub const Parser = struct {
         } else {
             std.debug.print("null", .{});
         }
-        std.debug.print("    peek_token: ", .{});
+        std.debug.print(",\n    peek_token: ", .{});
         if (self.peek_token) |peek_token| {
             peek_token.debugPrint();
         } else {
