@@ -33,7 +33,7 @@ const input =
     \\"string"
 ;
 
-test "lookup identifiers" {
+test "Token - lookup identifiers" {
     const strings = [_][]const u8{ "let", "fn", "if", "else", "true", "false", "return", "does not exist!", "15" };
     for (strings) |str| {
         const result = switch (token.lookupIdent(str)) {
@@ -46,7 +46,7 @@ test "lookup identifiers" {
     }
 }
 
-test "init lexer" {
+test "Lexer - init lexer" {
     const lexers = [_]Lexer{
         Lexer.init(""), Lexer.init(input),
     };
@@ -72,7 +72,7 @@ test "init lexer" {
 //
 // The `std.meta.eql` docs explicitly states that pointers are NOT followed! (https://ziglang.org/documentation/master/std/#std.meta.eql)
 // See also: https://www.reddit.com/r/Zig/comments/17ug7l7/zigs_stdmetaeql_fails_to_find_tagged_union/
-test "next token" {
+test "Lexer - next token" {
     const str =
         \\=      + -/    ,;{<][>)(   !-512.79 let    if else fn
         \\ true false
@@ -87,19 +87,5 @@ test "next token" {
     while (lexer.nextToken()) |next_tok| : (idx += 1) {
         const expected_tok = expected_tokens[idx];
         try expect(expected_tok.isEqual(next_tok));
-        // switch (next_tok) {
-        //     .Ident, .String => |actual_slice| {
-        //         switch (expected_tok) {
-        //             .Ident, .String => |expected_slice| {
-        //                 try expect(std.mem.eql(u8, @tagName(expected_tok), @tagName(next_tok)));
-        //                 try expect(std.mem.eql(u8, expected_slice, actual_slice));
-        //             },
-        //             else => {},
-        //         }
-        //     },
-        //     else => try expect(std.meta.eql(next_tok, expected_tok)),
-        // }
-        // next_tok.debugPrint();
-        // expected_tok.debugPrint();
     }
 }
