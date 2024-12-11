@@ -21,13 +21,13 @@ pub const Statement = union(enum) {
     // block_statement: BlockStatement,
 
     pub fn debugPrint(self: Statement) void {
-        std.debug.print("ast.Statement{{ .{s} = ", .{@tagName(self)});
+        // std.debug.print("ast.Statement{{ .{s} = ", .{@tagName(self)});
         switch (self) {
             .let_statement => |let_statement| let_statement.debugPrint(),
             .return_statement => |return_statement| return_statement.debugPrint(),
             .expression_statement => |expr| expr.debugPrint(),
         }
-        std.debug.print(" }}", .{});
+        // std.debug.print(" }}", .{});
     }
 };
 
@@ -45,7 +45,8 @@ pub const Expression = union(enum) {
     // index: Index,
 
     pub fn debugPrint(self: Expression) void {
-        std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
+        // std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
+        std.debug.print("(", .{});
         switch (self) {
             .identifier => |identifier| identifier.debugPrint(),
             .integer => |integer| integer.debugPrint(),
@@ -59,7 +60,8 @@ pub const Expression = union(enum) {
             // array => ,
             // index => ,
         }
-        std.debug.print(" }}", .{});
+        std.debug.print(")", .{});
+        // std.debug.print(" }}", .{});
     }
 };
 
@@ -68,11 +70,11 @@ pub const LetStatement = struct {
     value: *Expression,
 
     pub fn debugPrint(self: LetStatement) void {
-        std.debug.print("ast.Identifier{{\n    name: ", .{});
+        std.debug.print("let ", .{});
         self.name.debugPrint();
-        std.debug.print(",\n    value: ", .{});
+        std.debug.print(" = ", .{});
         self.value.debugPrint();
-        std.debug.print("\n}}", .{});
+        std.debug.print(";", .{});
     }
 };
 
@@ -80,9 +82,9 @@ pub const ReturnStatement = struct {
     value: *Expression,
 
     pub fn debugPrint(self: ReturnStatement) void {
-        std.debug.print("ast.ReturnStatement{{\n    value: ", .{});
+        std.debug.print("return ", .{});
         self.value.debugPrint();
-        std.debug.print("\n}}", .{});
+        std.debug.print(";", .{});
     }
 };
 
@@ -90,9 +92,7 @@ pub const ExpressionStatement = struct {
     expression: *Expression,
 
     pub fn debugPrint(self: ExpressionStatement) void {
-        std.debug.print("ast.ExpressionStatement{{\n    expression = ", .{});
         self.expression.debugPrint();
-        std.debug.print("\n}}", .{});
     }
 };
 
@@ -101,7 +101,7 @@ pub const Identifier = struct {
     value: []const u8,
 
     pub fn debugPrint(self: Identifier) void {
-        std.debug.print("ast.Identifier{{ value = \"{s}\" }}", .{self.value});
+        std.debug.print("{s}", .{self.value});
     }
 };
 
@@ -109,7 +109,7 @@ pub const Integer = struct {
     value: i32,
 
     pub fn debugPrint(self: Integer) void {
-        std.debug.print("{}", .{self});
+        std.debug.print("{}", .{self.value});
     }
 };
 
@@ -125,7 +125,7 @@ pub const String = struct {
     value: []const u8,
 
     pub fn debugPrint(self: String) void {
-        std.debug.print("ast.String{{ .value = \"{s}\" }}", .{self.value});
+        std.debug.print("\"{s}\"", .{self.value});
     }
 };
 
@@ -134,12 +134,9 @@ pub const PrefixExpression = struct {
     right: *Expression,
 
     pub fn debugPrint(self: PrefixExpression) void {
-        std.debug.print("ast.PrefixExpression{{\n", .{});
-        std.debug.print("    operator: ", .{});
         self.operator.debugPrint();
-        std.debug.print(",\n    right: ", .{});
+        std.debug.print(" ", .{});
         self.right.debugPrint();
-        std.debug.print(" }}", .{});
     }
 };
 
@@ -149,13 +146,10 @@ pub const InfixExpression = struct {
     right: *Expression,
 
     pub fn debugPrint(self: InfixExpression) void {
-        std.debug.print("ast.InfixExpression{{\n", .{});
-        std.debug.print("    operator: ", .{});
-        self.operator.debugPrint();
-        std.debug.print(",\n    left: ", .{});
         self.left.debugPrint();
-        std.debug.print(",\n    right: ", .{});
+        std.debug.print(" ", .{});
+        self.operator.debugPrint();
+        std.debug.print(" ", .{});
         self.right.debugPrint();
-        std.debug.print(" }}", .{});
     }
 };

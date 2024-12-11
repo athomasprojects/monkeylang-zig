@@ -76,8 +76,34 @@ pub const Token = union(TokenTag) {
 
     pub fn debugPrint(self: Token) void {
         switch (self) {
-            .Ident, .String => |str| std.debug.print("token.Token{{ .{s} = \"{s}\" }}", .{ @tagName(self), str }),
-            else => std.debug.print("{}", .{self}),
+            .Ident, .String => |str| std.debug.print("\"{s}\"", .{str}),
+            .Integer => |value| std.debug.print("{d}", .{value}),
+            .Illegal => std.debug.print("ILLEGAL", .{}),
+            .Assign => std.debug.print("=", .{}),
+            .Plus => std.debug.print("+", .{}),
+            .Minus => std.debug.print("-", .{}),
+            .Equal => std.debug.print("==", .{}),
+            .NotEqual => std.debug.print("!=", .{}),
+            .Bang => std.debug.print("!", .{}),
+            .Asterisk => std.debug.print("*", .{}),
+            .Slash => std.debug.print("/", .{}),
+            .LeftParen => std.debug.print("(", .{}),
+            .RightParen => std.debug.print(")", .{}),
+            .LeftBrace => std.debug.print("{{", .{}),
+            .RightBrace => std.debug.print("}}", .{}),
+            .LeftBracket => std.debug.print("[", .{}),
+            .RightBracket => std.debug.print("]", .{}),
+            .LessThan => std.debug.print("<", .{}),
+            .GreaterThan => std.debug.print(">", .{}),
+            .Comma => std.debug.print(",", .{}),
+            .Semicolon => std.debug.print(";", .{}),
+            .Let => std.debug.print("let", .{}),
+            .Function => std.debug.print("fn", .{}),
+            .If => std.debug.print("if", .{}),
+            .Else => std.debug.print("else", .{}),
+            .True => std.debug.print("true", .{}),
+            .False => std.debug.print("false", .{}),
+            .Return => std.debug.print("return", .{}),
         }
     }
 
