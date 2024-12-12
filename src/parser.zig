@@ -107,9 +107,6 @@ pub const Parser = struct {
         self.advance();
         const expr = try self.parseExpression(.lowest);
         if (self.peekTokenIs(.Semicolon)) {
-            // if (self.peek_token == null or self.current_token == null) {
-            //     return ParserError.ExpectedExpression;
-            // }
             self.advance();
         }
         const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
@@ -122,9 +119,6 @@ pub const Parser = struct {
         self.advance();
         const ret = try self.parseExpression(.lowest);
         if (self.peekTokenIs(.Semicolon)) {
-            // if (self.peek_token == null or self.current_token == null) {
-            //     return ParserError.ExpectedExpression;
-            // }
             self.advance();
         }
         const ret_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
