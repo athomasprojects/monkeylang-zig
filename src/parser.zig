@@ -22,6 +22,10 @@ pub const ParserError = error{
     InvalidInfix,
 };
 
+pub fn printParserError(self: ParserError) void {
+    std.debug.print("ERROR: {s}\n", .{@errorName(self)});
+}
+
 const Precedence = enum {
     lowest,
     equals,
@@ -69,14 +73,8 @@ pub const Parser = struct {
         var statements = ArrayList(ast.Statement).init(self.allocator);
 
         while (self.current_token) |_| {
-            if (self.current_token == null or self.peek_token == null) {
-                break;
-            }
             const s = try self.parseStatement();
             statements.append(s) catch return ParserError.InvalidProgram;
-            std.debug.print("\n", .{});
-            s.debugPrint();
-            std.debug.print("\n", .{});
             self.advance();
         }
         return .{ .statements = statements };
@@ -108,7 +106,7 @@ pub const Parser = struct {
         // Move parser to beginning of expression
         self.advance();
         const expr = try self.parseExpression(.lowest);
-        if (!self.peekTokenIs(.Semicolon)) {
+        if (self.peekTokenIs(.Semicolon)) {
             // if (self.peek_token == null or self.current_token == null) {
             //     return ParserError.ExpectedExpression;
             // }
@@ -116,8 +114,6 @@ pub const Parser = struct {
         }
         const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
         expr_ptr.* = expr;
-        // const let: ast.LetStatement = .{ .name = name, .value = .{ .noop = self.current_token.? } };
-        // try self.expectPeek(.Semicolon);
         return .{ .name = name, .value = expr_ptr };
     }
 
@@ -125,7 +121,7 @@ pub const Parser = struct {
         // Move parser to beginning of expression
         self.advance();
         const ret = try self.parseExpression(.lowest);
-        if (!self.peekTokenIs(.Semicolon)) {
+        if (self.peekTokenIs(.Semicolon)) {
             // if (self.peek_token == null or self.current_token == null) {
             //     return ParserError.ExpectedExpression;
             // }
@@ -149,15 +145,18 @@ pub const Parser = struct {
     fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
         if (self.current_token) |current_token| {
             var left_expr = try self.parsePrefix(current_token);
-            const peek_precedence = try self.peekPrecedence();
-            while (!self.peekTokenIs(.Semicolon) and precedence.isLessThan(peek_precedence)) {
-                const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
-                left_expr_ptr.* = left_expr;
-                if (self.peek_token) |peek_token| {
-                    left_expr = try self.parseInfix(peek_token, left_expr_ptr);
+            if (self.peekPrecedence()) |peek_precedence| {
+                while (!self.peekTokenIs(.Semicolon) and precedence.isLessThan(peek_precedence)) {
+                    const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+                    left_expr_ptr.* = left_expr;
+                    if (self.peek_token) |peek_token| {
+                        left_expr = try self.parseInfix(peek_token, left_expr_ptr);
+                    } else {
+                        break;
+                    }
                 }
-            }
-            return left_expr;
+                return left_expr;
+            } else |_| return left_expr;
         }
         return ParserError.ExpectedExpression;
     }

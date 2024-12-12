@@ -12,6 +12,13 @@ pub const Node = union(enum) {
 
 pub const Program = struct {
     statements: ArrayList(Statement),
+
+    pub fn printStatements(self: Program) void {
+        for (self.statements.items) |s| {
+            s.debugPrint();
+            std.debug.print("\n", .{});
+        }
+    }
 };
 
 pub const Statement = union(enum) {
@@ -74,7 +81,6 @@ pub const LetStatement = struct {
         self.name.debugPrint();
         std.debug.print(" = ", .{});
         self.value.debugPrint();
-        std.debug.print(";", .{});
     }
 };
 
@@ -84,7 +90,6 @@ pub const ReturnStatement = struct {
     pub fn debugPrint(self: ReturnStatement) void {
         std.debug.print("return ", .{});
         self.value.debugPrint();
-        std.debug.print(";", .{});
     }
 };
 

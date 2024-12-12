@@ -3,6 +3,8 @@
 const std = @import("std");
 const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
+// const ParserError = @import("parser.zig").ParserError;
+const printParserError = @import("parser.zig").printParserError;
 const ast = @import("ast.zig");
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
@@ -28,16 +30,10 @@ fn loop(allocator: std.mem.Allocator) !void {
                 var lexer: Lexer = Lexer.init(str);
 
                 var parser: Parser = Parser.init(&lexer, allocator);
-                _ = try parser.parse();
+                if (parser.parse()) |program| {
+                    program.printStatements();
+                } else |err| printParserError(err);
 
-                // for (program.statements.items) |s| {
-                //     s.debugPrint();
-                // }
-
-                // while (lexer.nextToken()) |next_tok| {
-                //     next_tok.debugPrint();
-                //     std.debug.print("\n", .{});
-                // }
                 try loop(allocator);
             }
         }
