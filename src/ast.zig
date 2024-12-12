@@ -15,7 +15,7 @@ pub const Program = struct {
 
     pub fn printStatements(self: Program) void {
         for (self.statements.items) |s| {
-            s.debugPrint();
+            s.print();
             std.debug.print("\n", .{});
         }
     }
@@ -27,14 +27,12 @@ pub const Statement = union(enum) {
     expression_statement: ExpressionStatement,
     // block_statement: BlockStatement,
 
-    pub fn debugPrint(self: Statement) void {
-        // std.debug.print("ast.Statement{{ .{s} = ", .{@tagName(self)});
+    pub fn print(self: Statement) void {
         switch (self) {
-            .let_statement => |let_statement| let_statement.debugPrint(),
-            .return_statement => |return_statement| return_statement.debugPrint(),
-            .expression_statement => |expr| expr.debugPrint(),
+            .let_statement => |let_statement| let_statement.print(),
+            .return_statement => |return_statement| return_statement.print(),
+            .expression_statement => |expr| expr.print(),
         }
-        // std.debug.print(" }}", .{});
     }
 };
 
@@ -51,16 +49,16 @@ pub const Expression = union(enum) {
     // array: Array,
     // index: Index,
 
-    pub fn debugPrint(self: Expression) void {
+    pub fn print(self: Expression) void {
         // std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
         std.debug.print("(", .{});
         switch (self) {
-            .identifier => |identifier| identifier.debugPrint(),
-            .integer => |integer| integer.debugPrint(),
-            .boolean => |boolean| boolean.debugPrint(),
-            .string => |string| string.debugPrint(),
-            .prefix => |prefix| prefix.debugPrint(),
-            .infix => |infix| infix.debugPrint(),
+            .identifier => |identifier| identifier.print(),
+            .integer => |integer| integer.print(),
+            .boolean => |boolean| boolean.print(),
+            .string => |string| string.print(),
+            .prefix => |prefix| prefix.print(),
+            .infix => |infix| infix.print(),
             // if_expression => ,
             // function => ,
             // call => ,
@@ -76,28 +74,28 @@ pub const LetStatement = struct {
     name: Identifier,
     value: *Expression,
 
-    pub fn debugPrint(self: LetStatement) void {
+    pub fn print(self: LetStatement) void {
         std.debug.print("let ", .{});
-        self.name.debugPrint();
+        self.name.print();
         std.debug.print(" = ", .{});
-        self.value.debugPrint();
+        self.value.print();
     }
 };
 
 pub const ReturnStatement = struct {
     value: *Expression,
 
-    pub fn debugPrint(self: ReturnStatement) void {
+    pub fn print(self: ReturnStatement) void {
         std.debug.print("return ", .{});
-        self.value.debugPrint();
+        self.value.print();
     }
 };
 
 pub const ExpressionStatement = struct {
     expression: *Expression,
 
-    pub fn debugPrint(self: ExpressionStatement) void {
-        self.expression.debugPrint();
+    pub fn print(self: ExpressionStatement) void {
+        self.expression.print();
     }
 };
 
@@ -105,7 +103,7 @@ pub const ExpressionStatement = struct {
 pub const Identifier = struct {
     value: []const u8,
 
-    pub fn debugPrint(self: Identifier) void {
+    pub fn print(self: Identifier) void {
         std.debug.print("{s}", .{self.value});
     }
 };
@@ -113,7 +111,7 @@ pub const Identifier = struct {
 pub const Integer = struct {
     value: i32,
 
-    pub fn debugPrint(self: Integer) void {
+    pub fn print(self: Integer) void {
         std.debug.print("{}", .{self.value});
     }
 };
@@ -121,7 +119,7 @@ pub const Integer = struct {
 pub const Boolean = struct {
     value: bool,
 
-    pub fn debugPrint(self: Boolean) void {
+    pub fn print(self: Boolean) void {
         std.debug.print("{}", .{self});
     }
 };
@@ -129,7 +127,7 @@ pub const Boolean = struct {
 pub const String = struct {
     value: []const u8,
 
-    pub fn debugPrint(self: String) void {
+    pub fn print(self: String) void {
         std.debug.print("\"{s}\"", .{self.value});
     }
 };
@@ -138,10 +136,10 @@ pub const PrefixExpression = struct {
     operator: Token,
     right: *Expression,
 
-    pub fn debugPrint(self: PrefixExpression) void {
-        self.operator.debugPrint();
+    pub fn print(self: PrefixExpression) void {
+        self.operator.print();
         std.debug.print(" ", .{});
-        self.right.debugPrint();
+        self.right.print();
     }
 };
 
@@ -150,11 +148,11 @@ pub const InfixExpression = struct {
     left: *Expression,
     right: *Expression,
 
-    pub fn debugPrint(self: InfixExpression) void {
-        self.left.debugPrint();
+    pub fn print(self: InfixExpression) void {
+        self.left.print();
         std.debug.print(" ", .{});
-        self.operator.debugPrint();
+        self.operator.print();
         std.debug.print(" ", .{});
-        self.right.debugPrint();
+        self.right.print();
     }
 };

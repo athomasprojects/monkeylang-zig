@@ -38,7 +38,6 @@ test "Token - lookup identifiers" {
             .Ident => |ident| std.mem.eql(u8, ident, str),
             else => false,
         };
-        // std.debug.print("{s}\n", .{str});
         try expect(result);
     }
 }
@@ -53,7 +52,6 @@ test "Lexer - init lexer" {
         .ch = null,
     }, .{ .input = input, .pos = 0, .ch = input[0], .length = input.len } };
     for (lexers, vals) |lexer, val| {
-        // lexer.debugPrint();
         try expect(std.meta.eql(lexer, val));
     }
 }

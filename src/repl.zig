@@ -9,7 +9,7 @@ const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
 pub fn start() !void {
-    stdout.print("Hello! This is the monkey programming language!\nFeel free to type in commands.\n", .{}) catch {};
+    try stdout.print("Hello! This is the monkey programming language!\nFeel free to type in commands.\n", .{});
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -20,7 +20,7 @@ pub fn start() !void {
 
     while (true) {
         stdout.print(">> ", .{}) catch {};
-        if (try stdin.readUntilDelimiterOrEof(buf[index..], '\n')) |input| {
+        if (stdin.readUntilDelimiterOrEof(buf[index..], '\n')) |input| {
             if (input) |str| {
                 index += str.len;
                 if (std.mem.eql(u8, str, "quit")) {

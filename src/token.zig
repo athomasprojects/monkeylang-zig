@@ -74,7 +74,7 @@ pub const Token = union(TokenTag) {
     False: void,
     Return: void,
 
-    pub fn debugPrint(self: Token) void {
+    pub fn print(self: Token) void {
         switch (self) {
             .Ident, .String => |str| std.debug.print("\"{s}\"", .{str}),
             .Integer => |value| std.debug.print("{d}", .{value}),
