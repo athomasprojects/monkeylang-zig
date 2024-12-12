@@ -184,9 +184,9 @@ pub const Parser = struct {
         if (self.current_token) |current_token| {
             if (current_token.isOperator()) {
                 self.advance();
-                const right = try self.parseExpression(.prefix);
+                const right_expr = try self.parseExpression(.prefix);
                 const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
-                right_ptr.* = right;
+                right_ptr.* = right_expr;
                 return .{ .operator = current_token, .right = right_ptr };
             } else {
                 return ParserError.ExpectedOperator;
