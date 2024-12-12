@@ -7,7 +7,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 pub const ParserError = error{
-    FailedMemAlloc,
+    FailedAlloc,
     ExpectedOperator,
     ExpectedPeek,
     ExpectedIdentifier,
@@ -112,7 +112,7 @@ pub const Parser = struct {
             // }
             self.advance();
         }
-        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
         expr_ptr.* = expr;
         return .{ .name = name, .value = expr_ptr };
     }
@@ -127,7 +127,7 @@ pub const Parser = struct {
             // }
             self.advance();
         }
-        const ret_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+        const ret_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
         ret_ptr.* = ret;
         return .{ .value = ret_ptr };
     }
@@ -137,7 +137,7 @@ pub const Parser = struct {
         if (self.peekTokenIs(.Semicolon)) {
             self.advance();
         }
-        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
         expr_ptr.* = expr;
         return .{ .expression = expr_ptr };
     }
@@ -147,7 +147,7 @@ pub const Parser = struct {
             var left_expr = try self.parsePrefix(current_token);
             if (self.peekPrecedence()) |peek_precedence| {
                 while (!self.peekTokenIs(.Semicolon) and precedence.isLessThan(peek_precedence)) {
-                    const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+                    const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
                     left_expr_ptr.* = left_expr;
                     if (self.peek_token) |peek_token| {
                         left_expr = try self.parseInfix(peek_token, left_expr_ptr);
@@ -191,7 +191,7 @@ pub const Parser = struct {
             if (current_token.isOperator()) {
                 self.advance();
                 const right = try self.parseExpression(.prefix);
-                const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+                const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
                 right_ptr.* = right;
                 return .{ .operator = current_token, .right = right_ptr };
             } else {
@@ -208,7 +208,7 @@ pub const Parser = struct {
                 const curr_token_precedence = tokenPrecedenceMap(current_token);
                 self.advance();
                 const right = try self.parseExpression(curr_token_precedence);
-                const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedMemAlloc;
+                const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
                 right_ptr.* = right;
                 return .{ .operator = current_token, .left = left, .right = right_ptr };
             }
