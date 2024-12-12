@@ -23,7 +23,7 @@ pub const ParserError = error{
 };
 
 pub fn printParserError(self: ParserError) void {
-    std.debug.print("ERROR: {s}\n", .{@errorName(self)});
+    std.debug.print("PARSER ERROR: {s}\n", .{@errorName(self)});
 }
 
 const Precedence = enum {

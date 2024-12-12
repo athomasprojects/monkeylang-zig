@@ -3,7 +3,6 @@
 const std = @import("std");
 const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
-// const ParserError = @import("parser.zig").ParserError;
 const printParserError = @import("parser.zig").printParserError;
 const ast = @import("ast.zig");
 const stdout = std.io.getStdOut().writer();
@@ -14,38 +13,28 @@ pub fn start() !void {
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
+    const allocator = arena.allocator();
 
-    try loop(arena.allocator());
-    return;
-}
+    var buf: [32768]u8 = undefined;
+    var index: usize = 0;
 
-fn loop(allocator: std.mem.Allocator) !void {
-    var buf: [2048]u8 = undefined;
-
-    stdout.print("{s}", .{">> "}) catch {};
-
-    if (stdin.readUntilDelimiterOrEof(&buf, '\n')) |input| {
-        if (input) |str| {
-            if (condition(str)) {
-                var lexer: Lexer = Lexer.init(str);
-
-                var parser: Parser = Parser.init(&lexer, allocator);
-                if (parser.parse()) |program| {
-                    program.printStatements();
-                } else |err| printParserError(err);
-
-                try loop(allocator);
+    while (true) {
+        stdout.print(">> ", .{}) catch {};
+        if (try stdin.readUntilDelimiterOrEof(buf[index..], '\n')) |input| {
+            if (input) |str| {
+                index += str.len;
+                if (std.mem.eql(u8, str, "quit")) {
+                    break;
+                } else {
+                    var lexer: Lexer = Lexer.init(str);
+                    var parser: Parser = Parser.init(&lexer, allocator);
+                    // Print parser statements for now. Eventually we will only print the output of the evaulated source code.
+                    if (parser.parse()) |program| {
+                        program.printStatements();
+                    } else |err| printParserError(err);
+                }
             }
-        }
-    } else |_| {}
-}
-
-fn condition(input: []const u8) bool {
-    // exit REPL if 'quit' command is entered
-    // else, keep accepting user input
-    if (std.mem.eql(u8, input, "quit")) {
-        return false;
-    } else {
-        return input.len >= 0;
+        } else |_| {}
     }
+    return;
 }
