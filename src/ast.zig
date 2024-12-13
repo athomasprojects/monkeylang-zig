@@ -29,8 +29,14 @@ pub const Statement = union(enum) {
 
     pub fn print(self: Statement) void {
         switch (self) {
-            .let_statement => |let_statement| let_statement.print(),
-            .return_statement => |return_statement| return_statement.print(),
+            .let_statement => |let_statement| {
+                let_statement.print();
+                std.debug.print(";", .{});
+            },
+            .return_statement => |return_statement| {
+                return_statement.print();
+                std.debug.print(";", .{});
+            },
             .expression_statement => |expr| expr.print(),
         }
     }
@@ -51,7 +57,6 @@ pub const Expression = union(enum) {
 
     pub fn print(self: Expression) void {
         // std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
-        std.debug.print("(", .{});
         switch (self) {
             .identifier => |identifier| identifier.print(),
             .integer => |integer| integer.print(),
@@ -65,7 +70,6 @@ pub const Expression = union(enum) {
             // array => ,
             // index => ,
         }
-        std.debug.print(")", .{});
         // std.debug.print(" }}", .{});
     }
 };
@@ -120,7 +124,7 @@ pub const Boolean = struct {
     value: bool,
 
     pub fn print(self: Boolean) void {
-        std.debug.print("{}", .{self});
+        std.debug.print("{}", .{self.value});
     }
 };
 
@@ -137,9 +141,10 @@ pub const PrefixExpression = struct {
     right: *Expression,
 
     pub fn print(self: PrefixExpression) void {
+        std.debug.print("(", .{});
         self.operator.print();
-        std.debug.print(" ", .{});
         self.right.print();
+        std.debug.print(")", .{});
     }
 };
 
@@ -149,10 +154,17 @@ pub const InfixExpression = struct {
     right: *Expression,
 
     pub fn print(self: InfixExpression) void {
+        std.debug.print("(", .{});
         self.left.print();
         std.debug.print(" ", .{});
         self.operator.print();
         std.debug.print(" ", .{});
         self.right.print();
+        std.debug.print(")", .{});
     }
+};
+
+pub const Call = struct {
+    callee: *Expression,
+    args: ArrayList(Expression),
 };

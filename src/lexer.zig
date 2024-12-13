@@ -10,7 +10,7 @@ pub const Lexer = struct {
     ch: ?u8 = null,
     length: usize = 0,
 
-    /// Creates a new lexer from the string `input`.
+    /// Creates a new lexer from the `input`.
     pub fn init(input: []const u8) Lexer {
         return switch (input.len) {
             0 => Lexer{
@@ -20,8 +20,8 @@ pub const Lexer = struct {
         };
     }
 
-    /// Updates the lexer state and returns the next token in the stream if it exists.
-    pub fn nextToken(self: *Lexer) ?Token {
+    /// Updates the lexer state and returns the next token in the stream.
+    pub fn nextToken(self: *Lexer) Token {
         self.skipWhitespace();
         if (self.ch) |ch| {
             switch (ch) {
@@ -98,7 +98,7 @@ pub const Lexer = struct {
                 },
             }
         } else {
-            return null;
+            return .Eof;
         }
     }
 
@@ -197,7 +197,7 @@ pub const Lexer = struct {
 
     /// Pretty printing (intended for print debugging).
     /// Writes the string representation of the `Lexer` to the stderr.
-    pub fn debugPrint(self: Lexer) void {
+    pub fn print(self: Lexer) void {
         std.debug.print("Lexer{{\n", .{});
         std.debug.print("    input: \"{s}\",\n", .{self.input});
         std.debug.print("    pos: {},\n", .{self.pos});

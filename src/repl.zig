@@ -29,9 +29,11 @@ pub fn start() !void {
                     var lexer: Lexer = Lexer.init(str);
                     var parser: Parser = Parser.init(&lexer, allocator);
                     // Print parser statements for now. Eventually we will only print the output of the evaulated source code.
-                    if (parser.parse()) |program| {
-                        program.printStatements();
-                    } else |err| printParserError(err);
+                    var program = try parser.parse();
+                    program.printStatements();
+                    // if (parser.parse()) |program| {
+                    //     program.printStatements();
+                    // } else |err| printParserError(err);
                 }
             }
         } else |_| {}

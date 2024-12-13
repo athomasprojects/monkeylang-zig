@@ -2,6 +2,8 @@ const std = @import("std");
 
 const StaticStringMap = std.static_string_map.StaticStringMap;
 pub const TokenTag = enum {
+    // End of file
+    Eof,
     // Identifiers
     Ident,
     String,
@@ -39,6 +41,8 @@ pub const TokenTag = enum {
 };
 
 pub const Token = union(TokenTag) {
+    // End of file
+    Eof: void,
     // Identifiers
     Ident: []const u8,
     String: []const u8,
@@ -104,6 +108,7 @@ pub const Token = union(TokenTag) {
             .True => std.debug.print("true", .{}),
             .False => std.debug.print("false", .{}),
             .Return => std.debug.print("return", .{}),
+            .Eof => std.debug.print("EOF", .{}),
         }
     }
 

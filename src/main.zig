@@ -10,6 +10,7 @@ const expect = std.testing.expect;
 const Lexer = @import("lexer.zig").Lexer;
 const token = @import("token.zig");
 const Token = token.Token;
+const TokenTag = token.TokenTag;
 
 const input =
     \\let five = 5;
@@ -79,7 +80,11 @@ test "Lexer - next token" {
     const expected_tokens = [_]Token{ .Assign, .Plus, .Minus, .Slash, .Comma, .Semicolon, .LeftBrace, .LessThan, .RightBracket, .LeftBracket, .GreaterThan, .RightParen, .LeftParen, .Bang, .Minus, .{ .Integer = 512 }, .Illegal, .{ .Integer = 79 }, .Let, .If, .Else, .Function, .True, .False, .{ .Ident = "_foo_" }, .Bang, .Bang, .{ .Ident = "bar_baz__" }, .{ .String = "string!%" }, .NotEqual, .Equal, .Equal, .Assign, .GreaterThan, .Assign, .Return, .Asterisk, .Assign, .NotEqual };
     var lexer = Lexer.init(str);
     var idx: usize = 0;
-    while (lexer.nextToken()) |next_tok| : (idx += 1) {
+    var next_tok: Token = lexer.nextToken();
+    while (next_tok != TokenTag.Eof) : ({
+        next_tok = lexer.nextToken();
+        idx += 1;
+    }) {
         const expected_tok = expected_tokens[idx];
         try expect(expected_tok.isEqual(next_tok));
     }
