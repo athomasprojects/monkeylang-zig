@@ -138,11 +138,6 @@ pub const Parser = struct {
             const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
             left_expr_ptr.* = left_expr;
             left_expr = try self.parseInfixToken(self.peek_token, left_expr_ptr);
-            // if (self.peek_token == TokenTag.RightParen) {
-            //     std.debug.print("\n==== Right paren found\n", .{});
-            //     left_expr.print();
-            //     std.debug.print("\n====\n", .{});
-            // }
         }
         return left_expr;
     }

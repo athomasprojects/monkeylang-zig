@@ -7,10 +7,12 @@ pub fn main() !void {
 
 // Tests
 const expect = std.testing.expect;
-const Lexer = @import("lexer.zig").Lexer;
 const token = @import("token.zig");
 const Token = token.Token;
 const TokenTag = token.TokenTag;
+const Lexer = @import("lexer.zig").Lexer;
+const Parser = @import("parser.zig").Parser;
+const ast = @import("ast.zig");
 
 const input =
     \\let five = 5;
@@ -88,4 +90,37 @@ test "Lexer - next token" {
         const expected_tok = expected_tokens[idx];
         try expect(expected_tok.isEqual(next_tok));
     }
+}
+
+test "Parser - init" {
+    const src = "let x = \"foo\"";
+    var lexer: Lexer = Lexer.init(src);
+    const current_token: Token = .Let;
+    const peek_token: Token = .{ .Ident = "x" };
+    const expected: Parser = .{
+        .lexer = &lexer,
+        .current_token = current_token,
+        .peek_token = peek_token,
+        .allocator = std.testing.allocator,
+    };
+
+    const parser = Parser.init(&lexer, std.testing.allocator);
+    try std.testing.expectEqualDeep(expected, parser);
+}
+
+test "Parser - identifiers" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 = "foo";
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+    const expr = switch (program.statements.items[0]) {
+        .expression_statement => |e| e.expression.*,
+        else => unreachable,
+    };
+    try expect(program.statements.items.len == 1);
+    try std.testing.expectEqualDeep(expr, ast.Expression{ .identifier = ast.Identifier{ .value = src } });
 }

@@ -4,11 +4,11 @@ const TokenTag = @import("token.zig").TokenTag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
-pub const Node = union(enum) {
-    program: *Program,
-    statement: *Statement,
-    expression: *Expression,
-};
+// pub const Node = union(enum) {
+//     program: *Program,
+//     statement: *Statement,
+//     expression: *Expression,
+// };
 
 pub const Program = struct {
     statements: ArrayList(Statement),
