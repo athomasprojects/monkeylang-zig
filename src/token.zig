@@ -112,6 +112,40 @@ pub const Token = union(TokenTag) {
         }
     }
 
+    pub fn toString(self: Token, buf: []u8) ![]const u8 {
+        return switch (self) {
+            .Integer => |value| std.fmt.bufPrintIntToSlice(buf, value, 10, .lower, std.fmt.FormatOptions{}),
+            .Ident, .String => |str| str,
+            .Illegal => "ILLEGAL",
+            .Assign => "=",
+            .Plus => "+",
+            .Minus => "-",
+            .Equal => "==",
+            .NotEqual => "!=",
+            .Bang => "!",
+            .Asterisk => "*",
+            .Slash => "/",
+            .LeftParen => "(",
+            .RightParen => ")",
+            .LeftBrace => "{{",
+            .RightBrace => "}}",
+            .LeftBracket => "[",
+            .RightBracket => "]",
+            .LessThan => "<",
+            .GreaterThan => ">",
+            .Comma => ",",
+            .Semicolon => ";",
+            .Let => "let",
+            .Function => "fn",
+            .If => "if",
+            .Else => "else",
+            .True => "true",
+            .False => "false",
+            .Return => "return",
+            .Eof => "EOF",
+        };
+    }
+
     pub fn isEqual(self: Token, other: Token) bool {
         switch (self) {
             .Ident, .String => |actual_slice| {

@@ -4,12 +4,6 @@ const TokenTag = @import("token.zig").TokenTag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
-// pub const Node = union(enum) {
-//     program: *Program,
-//     statement: *Statement,
-//     expression: *Expression,
-// };
-
 pub const Program = struct {
     statements: ArrayList(Statement),
 
@@ -40,6 +34,20 @@ pub const Statement = union(enum) {
             .expression_statement => |expr| expr.print(),
         }
     }
+
+    // pub fn toString(self: Statement) ![]u8 {
+    //     switch (self) {
+    //         .letwstatement => |let_statement| {
+    //             let_statement.toString();
+    //             std.debug.print(";", .{});
+    //         },
+    //         .return_statement => |return_statement| {
+    //             return_statement.toString();
+    //             std.debug.print(";", .{});
+    //         },
+    //         .expression_statement => |expr| expr.toString(),
+    //     }
+    // }
 };
 
 pub const Expression = union(enum) {
