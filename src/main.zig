@@ -108,7 +108,7 @@ test "Parser - init" {
     try std.testing.expectEqualDeep(expected, parser);
 }
 
-test "Parser - identifiers" {
+test "Parser - identifier expressions" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -123,4 +123,88 @@ test "Parser - identifiers" {
     };
     try expect(program.statements.items.len == 1);
     try std.testing.expectEqualDeep(expr, ast.Expression{ .identifier = ast.Identifier{ .value = src } });
+}
+
+test "Parser - integer expressions" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 = "123456789; 0; 01";
+    const expected = [_]i32{ 123456789, 0, 1 };
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == expected.len);
+    for (program.statements.items, expected) |stmt, int| {
+        const expr = switch (stmt) {
+            .expression_statement => |e| e.expression.*,
+            else => unreachable,
+        };
+        try std.testing.expectEqualDeep(expr, ast.Expression{ .integer = ast.Integer{ .value = int } });
+    }
+}
+
+test "Parser - negative integer expressions" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const expected = [_]i32{ 123456789, 0, 1 };
+    const src: []const u8 = "-123456789; -0; -1";
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+    try expect(program.statements.items.len == expected.len);
+    for (program.statements.items, expected) |stmt, int| {
+        const expr = switch (stmt) {
+            .expression_statement => |e| e.expression.*,
+            else => unreachable,
+        };
+        try std.testing.expect(expr.prefix.operator == TokenTag.Minus);
+        try std.testing.expectEqualDeep(expr.prefix.right.*.integer, ast.Integer{ .value = int });
+    }
+}
+
+test "Parser - booleans expressions" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const expected = [_]bool{ true, false };
+    const src: []const u8 = "true; false";
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == expected.len);
+    for (program.statements.items, expected) |stmt, b| {
+        const expr = switch (stmt) {
+            .expression_statement => |e| e.expression.*,
+            else => unreachable,
+        };
+        try std.testing.expectEqualDeep(expr, ast.Expression{ .boolean = ast.Boolean{ .value = b } });
+    }
+}
+
+test "Parser - string expressions" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const expected = [_][]const u8{ "hello", "x%foo23", "!_bar", "]*(BaZ)}]" };
+    const src: []const u8 = "\"hello\"; \"x%foo23\"; \"!_bar\"; \"]*(BaZ)}]\"";
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == expected.len);
+    for (program.statements.items, expected) |stmt, str| {
+        const expr = switch (stmt) {
+            .expression_statement => |e| e.expression.*,
+            else => unreachable,
+        };
+        try std.testing.expectEqualDeep(expr, ast.Expression{ .string = ast.String{ .value = str } });
+    }
 }
