@@ -230,6 +230,7 @@ test "Parser let statement" {
             .let_statement => |let_statement| try let_statement.toString(allocator),
             .return_statement => |return_statement| try return_statement.toString(allocator),
             .expression_statement => |expr| try expr.toString(allocator),
+            else => unreachable,
         };
         // std.debug.print("{s}\n", .{s});
         try std.testing.expectEqualStrings(expected, s);
@@ -258,6 +259,7 @@ test "Parser return statement" {
             .let_statement => |let_statement| try let_statement.toString(allocator),
             .return_statement => |return_statement| try return_statement.toString(allocator),
             .expression_statement => |expr| try expr.toString(allocator),
+            else => unreachable,
         };
         // std.debug.print("{s}\n", .{s});
         try std.testing.expectEqualStrings(expected, s);
@@ -289,8 +291,43 @@ test "Parser expression statement" {
             .let_statement => |let_statement| try let_statement.toString(allocator),
             .return_statement => |return_statement| try return_statement.toString(allocator),
             .expression_statement => |expr| try expr.toString(allocator),
+            else => unreachable,
         };
         // std.debug.print("{s}\n", .{s});
+        try std.testing.expectEqualStrings(expected, s);
+    }
+}
+
+test "Parser block statement" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\{ foo;
+        \\ let boo = "boo! this is a spooky string"; 123 * "foo" + "bar"
+        \\ * 
+        \\    (-_baz / (5 * 3));
+        \\ return true * false;
+        \\  };
+    ;
+    const expected =
+        \\{
+        \\foo
+        \\let boo = "boo! this is a spooky string";
+        \\((123 * "foo") + ("bar" * ((-_baz) / (5 * 3))))
+        \\return (true * false);
+        \\}
+    ;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = try stmt.toString(allocator);
+        // std.debug.print("{s}", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }

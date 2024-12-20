@@ -15,11 +15,16 @@ pub const Program = struct {
         }
     }
 
-    // pub fn toString(self: Program, allocator: Allocator) !void {
-    //     for (self.statements.items) |s| {
-    //         try s.toString();
-    //         std.debug.print("\n", .{});
+    // pub fn toString(self: Program, allocator: Allocator) ![]u8 {
+    //     var list = ArrayList(u8).init(allocator);
+    //     defer list.deinit();
+    //     for (self.statements.items) |stmt| {
+    //         const str = try stmt.toString(allocator);
+    //         const s = try std.fmt.allocPrint(allocator, "{s}\n", .{str});
+    //         try list.appendSlice(s);
     //     }
+    //     const s = try std.fmt.allocPrint(allocator, "{s}", .{list.items});
+    //     return s;
     // }
 };
 
@@ -27,7 +32,7 @@ pub const Statement = union(enum) {
     let_statement: LetStatement,
     return_statement: ReturnStatement,
     expression_statement: ExpressionStatement,
-    // block_statement: BlockStatement,
+    block_statement: BlockStatement,
 
     pub fn print(self: Statement) void {
         switch (self) {
@@ -38,19 +43,17 @@ pub const Statement = union(enum) {
                 return_statement.print();
             },
             .expression_statement => |expr| expr.print(),
+            .block_statement => |block| block.print(),
         }
     }
 
     pub fn toString(self: Statement, allocator: Allocator) ![]u8 {
-        switch (self) {
-            .let_statement => |let_statement| {
-                let_statement.toString(allocator);
-            },
-            .return_statement => |return_statement| {
-                return_statement.toString(allocator);
-            },
-            .expression_statement => |expr| expr.toString(allocator),
-        }
+        return switch (self) {
+            .let_statement => |let_statement| try let_statement.toString(allocator),
+            .return_statement => |return_statement| try return_statement.toString(allocator),
+            .expression_statement => |expr| try expr.toString(allocator),
+            .block_statement => |block| try block.toString(allocator),
+        };
     }
 };
 
@@ -153,6 +156,33 @@ pub const ExpressionStatement = struct {
     }
 };
 
+pub const BlockStatement = struct {
+    statements: ArrayList(Statement),
+
+    pub fn print(self: BlockStatement) void {
+        std.debug.print("{{\n", .{});
+        for (self.statements.items) |stmt| {
+            stmt.print();
+            std.debug.print("\n", .{});
+        }
+        std.debug.print("}};", .{});
+    }
+
+    pub fn toString(self: BlockStatement, allocator: Allocator) (std.mem.Allocator.Error || AllocPrintError)![]u8 {
+        var list = ArrayList(u8).init(allocator);
+        defer list.deinit();
+        try list.appendSlice("{\n");
+        for (self.statements.items) |stmt| {
+            const str = try stmt.toString(allocator);
+            try list.appendSlice(str);
+            try list.append('\n');
+        }
+        try list.append('}');
+        const s = try std.fmt.allocPrint(allocator, "{s}", .{list.items});
+        return s;
+    }
+};
+
 // Expressions
 pub const Identifier = struct {
     value: []const u8,
@@ -247,6 +277,12 @@ pub const InfixExpression = struct {
         const s = try std.fmt.allocPrint(allocator, "({s} {s} {s})", .{ left, operator, right });
         return s;
     }
+};
+
+pub const IfExpression = struct {
+    condition: *Expression,
+    then_branch: *BlockStatement,
+    else_branch: *BlockStatement,
 };
 
 pub const Call = struct {
