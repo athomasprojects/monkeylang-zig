@@ -331,3 +331,39 @@ test "Parser block statement" {
         try std.testing.expectEqualStrings(expected, s);
     }
 }
+
+test "Parser if expression" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\if (x != "foo" + "bar" - (5 * 3 / 2)) {
+        \\let x = "foo";
+        \\if (y > 2) { y };
+        \\} else {
+        \\return "baz";
+        \\}
+    ;
+    const expected =
+        \\if (x != (("foo" + "bar") - ((5 * 3) / 2))) {
+        \\let x = "foo";
+        \\if (y > 2) {
+        \\y
+        \\}
+        \\} else {
+        \\return "baz";
+        \\}
+    ;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = try stmt.toString(allocator);
+        // std.debug.print("{s}", .{s});
+        try std.testing.expectEqualStrings(expected, s);
+    }
+}

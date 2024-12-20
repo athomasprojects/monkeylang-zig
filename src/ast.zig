@@ -5,6 +5,8 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const AllocPrintError = std.fmt.AllocPrintError;
 
+pub const ToStringError = std.mem.Allocator.Error || AllocPrintError;
+
 pub const Program = struct {
     statements: ArrayList(Statement),
 
@@ -64,7 +66,7 @@ pub const Expression = union(enum) {
     string: String,
     prefix: PrefixExpression,
     infix: InfixExpression,
-    // if_expression: IfExpression,
+    if_expression: IfExpression,
     // function: Function,
     // call: Call,
     // array: Array,
@@ -79,7 +81,7 @@ pub const Expression = union(enum) {
             .string => |string| string.print(),
             .prefix => |prefix| prefix.print(),
             .infix => |infix| infix.print(),
-            // if_expression => ,
+            .if_expression => |if_expr| if_expr.print(),
             // function => ,
             // call => ,
             // array => ,
@@ -97,7 +99,7 @@ pub const Expression = union(enum) {
             .string => |string| try string.toString(allocator),
             .prefix => |prefix| try prefix.toString(allocator),
             .infix => |infix| try infix.toString(allocator),
-            // if_expression => ,
+            .if_expression => |if_expr| try if_expr.toString(allocator),
             // function => ,
             // call => ,
             // array => ,
@@ -165,10 +167,10 @@ pub const BlockStatement = struct {
             stmt.print();
             std.debug.print("\n", .{});
         }
-        std.debug.print("}};", .{});
+        std.debug.print("}}", .{});
     }
 
-    pub fn toString(self: BlockStatement, allocator: Allocator) (std.mem.Allocator.Error || AllocPrintError)![]u8 {
+    pub fn toString(self: BlockStatement, allocator: Allocator) ToStringError![]u8 {
         var list = ArrayList(u8).init(allocator);
         defer list.deinit();
         try list.appendSlice("{\n");
@@ -282,7 +284,31 @@ pub const InfixExpression = struct {
 pub const IfExpression = struct {
     condition: *Expression,
     then_branch: *BlockStatement,
-    else_branch: *BlockStatement,
+    else_branch: ?*BlockStatement = null,
+
+    pub fn print(self: IfExpression) void {
+        std.debug.print("if ", .{});
+        self.condition.print();
+        std.debug.print(" ", .{});
+        self.then_branch.print();
+        if (self.else_branch) |else_branch| {
+            std.debug.print(" else ", .{});
+            else_branch.print();
+        }
+    }
+
+    pub fn toString(self: IfExpression, allocator: Allocator) ToStringError![]u8 {
+        const condition = try self.condition.toString(allocator);
+        const then_block = try self.then_branch.toString(allocator);
+        var str: []u8 = undefined;
+        if (self.else_branch) |else_branch| {
+            const else_block = try else_branch.toString(allocator);
+            str = try std.fmt.allocPrint(allocator, "if {s} {s} else {s}", .{ condition, then_block, else_block });
+        } else {
+            str = try std.fmt.allocPrint(allocator, "if {s} {s}", .{ condition, then_block });
+        }
+        return str;
+    }
 };
 
 pub const Call = struct {

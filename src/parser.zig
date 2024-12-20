@@ -164,9 +164,9 @@ pub const Parser = struct {
             .Bang, .Minus => .{ .prefix = try self.parsePrefixExpression() },
             .True, .False => .{ .boolean = try self.parseBoolean() },
             .LeftParen => try self.parseGroupedExpression(),
-            // .LeftBracket => .{ .array = try self.parseArray() },
-            // .If => .{ .if_expression = try self.parseIfExpression() },
+            .If => .{ .if_expression = try self.parseIfExpression() },
             // .Function => .{ .function = try self.parseFunctionLiteral() },
+            // .LeftBracket => .{ .array = try self.parseArray() },
             else => ParserError.InvalidPrefix,
         };
     }
@@ -212,6 +212,31 @@ pub const Parser = struct {
         const expr = try self.parseExpression(.lowest);
         try self.expectPeek(.RightParen);
         return expr;
+    }
+
+    fn parseIfExpression(self: *Parser) ParserError!ast.IfExpression {
+        try self.expectPeek(.LeftParen);
+        const condition = try self.parseExpression(.lowest);
+        const condition_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+        condition_ptr.* = condition;
+
+        try self.expectPeek(.LeftBrace);
+        const then_branch = try self.parseBlockStatement();
+        const then_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
+        then_ptr.* = then_branch;
+
+        if (self.peek_token == TokenTag.Else) {
+            self.advance();
+            try self.expectPeek(.LeftBrace);
+            const else_branch = try self.parseBlockStatement();
+            const else_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
+            else_ptr.* = else_branch;
+            return ast.IfExpression{ .condition = condition_ptr, .then_branch = then_ptr, .else_branch = else_ptr };
+        } else {
+            return ast.IfExpression{ .condition = condition_ptr, .then_branch = then_ptr };
+        }
+
+        self.chompSemicolon();
     }
 
     // Expressions
