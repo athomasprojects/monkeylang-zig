@@ -208,7 +208,7 @@ test "Parser - string expressions" {
     }
 }
 
-test "Parser let statement" {
+test "Parser - let statement" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -237,7 +237,7 @@ test "Parser let statement" {
     }
 }
 
-test "Parser return statement" {
+test "Parser - return statement" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -266,7 +266,7 @@ test "Parser return statement" {
     }
 }
 
-test "Parser expression statement" {
+test "Parser - expression statement" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -298,7 +298,7 @@ test "Parser expression statement" {
     }
 }
 
-test "Parser block statement" {
+test "Parser - block statement" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -332,7 +332,7 @@ test "Parser block statement" {
     }
 }
 
-test "Parser if expression" {
+test "Parser - if expression" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
