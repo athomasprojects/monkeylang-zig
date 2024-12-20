@@ -15,7 +15,7 @@ pub fn start() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var buf: [32768]u8 = undefined;
+    const buf: [32768]u8 = undefined;
     var index: usize = 0;
 
     while (true) {

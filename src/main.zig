@@ -14,25 +14,6 @@ const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
 const ast = @import("ast.zig");
 
-const input =
-    \\let five = 5;
-    \\let ten = 10;
-    \\let add = fn(x, y){
-    \\x + y;
-    \\};
-    \\let result = add(five, ten);
-    \\if x != y {
-    \\let foo_bar = y / x * 69;
-    \\return true;
-    \\} else {
-    \\return false;
-    \\}
-    \\10 == 10;
-    \\10 != 9;
-    \\baz =!= 420
-    \\"string"
-;
-
 test "Token - lookup identifiers" {
     const strings = [_][]const u8{ "let", "fn", "if", "else", "true", "false", "return", "does not exist!", "15" };
     for (strings) |str| {
@@ -46,6 +27,24 @@ test "Token - lookup identifiers" {
 }
 
 test "Lexer - init lexer" {
+    const input =
+        \\let five = 5;
+        \\let ten = 10;
+        \\let add = fn(x, y){
+        \\x + y;
+        \\};
+        \\let result = add(five, ten);
+        \\if x != y {
+        \\let foo_bar = y / x * 69;
+        \\return true;
+        \\} else {
+        \\return false;
+        \\}
+        \\10 == 10;
+        \\10 != 9;
+        \\baz =!= 420
+        \\"string"
+    ;
     const lexers = [_]Lexer{
         Lexer.init(""), Lexer.init(input),
     };
@@ -162,7 +161,7 @@ test "Parser - negative integer expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try std.testing.expect(expr.prefix.operator == TokenTag.Minus);
+        try expect(expr.prefix.operator == TokenTag.Minus);
         try std.testing.expectEqualDeep(expr.prefix.right.*.integer, ast.Integer{ .value = int });
     }
 }
@@ -206,5 +205,92 @@ test "Parser - string expressions" {
             else => unreachable,
         };
         try std.testing.expectEqualDeep(expr, ast.Expression{ .string = ast.String{ .value = str } });
+    }
+}
+
+test "Parser let statement" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\let x = "foo" + "bar" * (-baz / (5 * 3))
+    ;
+    const expected =
+        \\let x = ("foo" + ("bar" * ((-baz) / (5 * 3))));
+    ;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = switch (stmt) {
+            .let_statement => |let_statement| try let_statement.toString(allocator),
+            .return_statement => |return_statement| try return_statement.toString(allocator),
+            .expression_statement => |expr| try expr.toString(allocator),
+        };
+        // std.debug.print("{s}\n", .{s});
+        try std.testing.expectEqualStrings(expected, s);
+    }
+}
+
+test "Parser return statement" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\return 123 * "foo" + "bar" * (-_baz / (5 * 3))
+    ;
+    const expected =
+        \\return ((123 * "foo") + ("bar" * ((-_baz) / (5 * 3))));
+    ;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = switch (stmt) {
+            .let_statement => |let_statement| try let_statement.toString(allocator),
+            .return_statement => |return_statement| try return_statement.toString(allocator),
+            .expression_statement => |expr| try expr.toString(allocator),
+        };
+        // std.debug.print("{s}\n", .{s});
+        try std.testing.expectEqualStrings(expected, s);
+    }
+}
+
+test "Parser expression statement" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    // The lexer skips whitespace so weird formatting shouldn't matter here.
+    const src: []const u8 =
+        \\123 * "foo" + "bar"
+        \\ * 
+        \\    (-_baz / (5 * 3))
+    ;
+    const expected =
+        \\((123 * "foo") + ("bar" * ((-_baz) / (5 * 3))))
+    ;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = switch (stmt) {
+            .let_statement => |let_statement| try let_statement.toString(allocator),
+            .return_statement => |return_statement| try return_statement.toString(allocator),
+            .expression_statement => |expr| try expr.toString(allocator),
+        };
+        // std.debug.print("{s}\n", .{s});
+        try std.testing.expectEqualStrings(expected, s);
     }
 }

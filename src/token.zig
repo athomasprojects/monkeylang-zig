@@ -112,39 +112,39 @@ pub const Token = union(TokenTag) {
         }
     }
 
-    // pub fn toString(self: Token, buf: []u8) ![]const u8 {
-    //     return switch (self) {
-    //         .Integer => |value| std.fmt.bufPrintIntToSlice(buf, value, 10, .lower, std.fmt.FormatOptions{}),
-    //         .Ident, .String => |str| str,
-    //         .Illegal => "ILLEGAL",
-    //         .Assign => "=",
-    //         .Plus => "+",
-    //         .Minus => "-",
-    //         .Equal => "==",
-    //         .NotEqual => "!=",
-    //         .Bang => "!",
-    //         .Asterisk => "*",
-    //         .Slash => "/",
-    //         .LeftParen => "(",
-    //         .RightParen => ")",
-    //         .LeftBrace => "{{",
-    //         .RightBrace => "}}",
-    //         .LeftBracket => "[",
-    //         .RightBracket => "]",
-    //         .LessThan => "<",
-    //         .GreaterThan => ">",
-    //         .Comma => ",",
-    //         .Semicolon => ";",
-    //         .Let => "let",
-    //         .Function => "fn",
-    //         .If => "if",
-    //         .Else => "else",
-    //         .True => "true",
-    //         .False => "false",
-    //         .Return => "return",
-    //         .Eof => "EOF",
-    //     };
-    // }
+    pub fn toString(self: Token, allocator: std.mem.Allocator) ![]u8 {
+        return switch (self) {
+            .Integer => |value| try std.fmt.allocPrint(allocator, "{d}", .{value}),
+            .Ident, .String => |str| try std.fmt.allocPrint(allocator, "{s}", .{str}),
+            .Illegal => try std.fmt.allocPrint(allocator, "ILLEGAL", .{}),
+            .Assign => try std.fmt.allocPrint(allocator, "=", .{}),
+            .Plus => try std.fmt.allocPrint(allocator, "+", .{}),
+            .Minus => try std.fmt.allocPrint(allocator, "-", .{}),
+            .Equal => try std.fmt.allocPrint(allocator, "==", .{}),
+            .NotEqual => try std.fmt.allocPrint(allocator, "!=", .{}),
+            .Bang => try std.fmt.allocPrint(allocator, "!", .{}),
+            .Asterisk => try std.fmt.allocPrint(allocator, "*", .{}),
+            .Slash => try std.fmt.allocPrint(allocator, "/", .{}),
+            .LeftParen => try std.fmt.allocPrint(allocator, "(", .{}),
+            .RightParen => try std.fmt.allocPrint(allocator, ")", .{}),
+            .LeftBrace => try std.fmt.allocPrint(allocator, "{{", .{}),
+            .RightBrace => try std.fmt.allocPrint(allocator, "}}", .{}),
+            .LeftBracket => try std.fmt.allocPrint(allocator, "[", .{}),
+            .RightBracket => try std.fmt.allocPrint(allocator, "]", .{}),
+            .LessThan => try std.fmt.allocPrint(allocator, "<", .{}),
+            .GreaterThan => try std.fmt.allocPrint(allocator, ">", .{}),
+            .Comma => try std.fmt.allocPrint(allocator, ",", .{}),
+            .Semicolon => try std.fmt.allocPrint(allocator, ";", .{}),
+            .Let => try std.fmt.allocPrint(allocator, "let", .{}),
+            .Function => try std.fmt.allocPrint(allocator, "fn", .{}),
+            .If => try std.fmt.allocPrint(allocator, "if", .{}),
+            .Else => try std.fmt.allocPrint(allocator, "else", .{}),
+            .True => try std.fmt.allocPrint(allocator, "true", .{}),
+            .False => try std.fmt.allocPrint(allocator, "false", .{}),
+            .Return => try std.fmt.allocPrint(allocator, "return", .{}),
+            .Eof => try std.fmt.allocPrint(allocator, "EOF", .{}),
+        };
+    }
 
     pub fn isEqual(self: Token, other: Token) bool {
         switch (self) {
