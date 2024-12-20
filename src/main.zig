@@ -376,7 +376,9 @@ test "Parser - function literal" {
     const src: []const u8 =
         \\let add = fn(foo, bar, baz) {
         \\let x = 5;
-        \\{ "foo" + "bar" }
+        \\{ "foo" + "bar";
+        \\fn(x,y) { x }
+        \\}
         \\return foo * bar / baz;
         \\}
         \\
@@ -388,6 +390,9 @@ test "Parser - function literal" {
         \\let x = 5;
         \\{
         \\("foo" + "bar")
+        \\fn(x, y) {
+        \\x
+        \\}
         \\}
         \\return ((foo * bar) / baz);
         \\};
