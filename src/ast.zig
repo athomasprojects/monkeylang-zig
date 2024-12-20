@@ -67,7 +67,7 @@ pub const Expression = union(enum) {
     prefix: PrefixExpression,
     infix: InfixExpression,
     if_expression: IfExpression,
-    // function: Function,
+    function: FunctionLiteral,
     // call: Call,
     // array: Array,
     // index: Index,
@@ -82,7 +82,7 @@ pub const Expression = union(enum) {
             .prefix => |prefix| prefix.print(),
             .infix => |infix| infix.print(),
             .if_expression => |if_expr| if_expr.print(),
-            // function => ,
+            .function => |func| func.print(),
             // call => ,
             // array => ,
             // index => ,
@@ -100,7 +100,7 @@ pub const Expression = union(enum) {
             .prefix => |prefix| try prefix.toString(allocator),
             .infix => |infix| try infix.toString(allocator),
             .if_expression => |if_expr| try if_expr.toString(allocator),
-            // function => ,
+            .function => |func| try func.toString(allocator),
             // call => ,
             // array => ,
             // index => ,
@@ -308,6 +308,41 @@ pub const IfExpression = struct {
             str = try std.fmt.allocPrint(allocator, "if {s} {s}", .{ condition, then_block });
         }
         return str;
+    }
+};
+
+pub const FunctionLiteral = struct {
+    parameters: ?ArrayList(Identifier) = null,
+    body: *BlockStatement,
+
+    pub fn print(self: FunctionLiteral) void {
+        std.debug.print("fn(", .{});
+        if (self.parameters) |parameters| {
+            for (0..parameters.items.len, parameters.items) |idx, ident| {
+                ident.print();
+                if (idx < parameters.items.len - 1) {
+                    std.debug.print(", ", .{});
+                }
+            }
+        }
+        std.debug.print(") ", .{});
+        self.body.print();
+    }
+
+    pub fn toString(self: FunctionLiteral, allocator: Allocator) ToStringError![]u8 {
+        var list = ArrayList(u8).init(allocator);
+        defer list.deinit();
+        if (self.parameters) |parameters| {
+            for (0..parameters.items.len, parameters.items) |idx, ident| {
+                try list.appendSlice(ident.value);
+                if (idx < parameters.items.len - 1) {
+                    try list.appendSlice(", ");
+                }
+            }
+        }
+        const body = try self.body.toString(allocator);
+        const s = try std.fmt.allocPrint(allocator, "fn({s}) {s}", .{ list.items, body });
+        return s;
     }
 };
 

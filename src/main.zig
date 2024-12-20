@@ -367,3 +367,40 @@ test "Parser - if expression" {
         try std.testing.expectEqualStrings(expected, s);
     }
 }
+
+test "Parser - function literal" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\let add = fn(foo, bar, baz) {
+        \\let x = 5;
+        \\{ "foo" + "bar" }
+        \\return foo * bar / baz;
+        \\}
+        \\
+        \\
+        \\
+    ;
+    const expected =
+        \\let add = fn(foo, bar, baz) {
+        \\let x = 5;
+        \\{
+        \\("foo" + "bar")
+        \\}
+        \\return ((foo * bar) / baz);
+        \\};
+    ;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = try stmt.toString(allocator);
+        // std.debug.print("{s}", .{s});
+        try std.testing.expectEqualStrings(expected, s);
+    }
+}

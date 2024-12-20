@@ -91,6 +91,12 @@ pub const Parser = struct {
         }
     }
 
+    fn chompToken(self: *Parser, token: TokenTag) void {
+        if (self.peek_token == token) {
+            self.advance();
+        }
+    }
+
     fn parseStatement(self: *Parser) ParserError!ast.Statement {
         const current_token = self.current_token;
         return switch (current_token) {
@@ -165,7 +171,7 @@ pub const Parser = struct {
             .True, .False => .{ .boolean = try self.parseBoolean() },
             .LeftParen => try self.parseGroupedExpression(),
             .If => .{ .if_expression = try self.parseIfExpression() },
-            // .Function => .{ .function = try self.parseFunctionLiteral() },
+            .Function => .{ .function = try self.parseFunctionLiteral() },
             // .LeftBracket => .{ .array = try self.parseArray() },
             else => ParserError.InvalidPrefix,
         };
@@ -237,6 +243,29 @@ pub const Parser = struct {
         }
 
         self.chompSemicolon();
+    }
+
+    fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
+        try self.expectPeek(.LeftParen);
+        var parameters: ?ArrayList(ast.Identifier) = null;
+        if (self.peek_token != TokenTag.RightParen) {
+            self.advance();
+            var list = ArrayList(ast.Identifier).init(self.allocator);
+            while (self.current_token != .RightParen) : (self.advance()) {
+                // Parse function params.
+                const ident = try self.parseIdentifier();
+                list.append(ident) catch return ParserError.FailedAlloc;
+                self.chompToken(.Comma);
+            }
+            parameters = list;
+        }
+
+        // Parse function body.
+        try self.expectPeek(.LeftBrace);
+        const body = try self.parseBlockStatement();
+        const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
+        body_ptr.* = body;
+        return .{ .parameters = parameters, .body = body_ptr };
     }
 
     // Expressions
