@@ -59,15 +59,18 @@ test "Lexer - init lexer" {
 }
 
 // Note: `std.meta.eql` does not work for structs containing fields that are
-// slices. This is because slices are 'fat pointers'. So, for example, if
-// we are comparing two fields whose contents are slices, then `std.meta.eql`
-// will compare their their lengths and _pointers_, NOT their contents! The
-// pointers might not point to the same locations in memory, even if they
-// happen to have the same contents. Since meaning of pointer comparison can be
-// somewhat ambiguous and therefore is not handled by `std.meta.eql`. Instead
-// the user has to implement the comparison.
+// slices. This is because slices are 'fat pointers'.
 //
-// The `std.meta.eql` docs explicitly states that pointers are NOT followed! (https://ziglang.org/documentation/master/std/#std.meta.eql)
+// So, for example, if we are comparing two fields whose contents are slices,
+// then `std.meta.eql` will compare their their lengths and _pointers_, NOT
+// their contents!
+//
+// The pointers might not point to the same locations in
+// memory, even if they happen to have the same contents. Since meaning of
+// pointer comparison can be somewhat ambiguous and therefore is not handled by
+// `std.meta.eql`. Instead the user has to implement the comparison.
+//
+// The `std.meta.eql` docs explicitly states that pointers are NOT followed! - (see: https://ziglang.org/documentation/master/std/#std.meta.eql)
 // See also: https://www.reddit.com/r/Zig/comments/17ug7l7/zigs_stdmetaeql_fails_to_find_tagged_union/
 test "Lexer - next token" {
     const str =
@@ -410,7 +413,27 @@ test "Parser - function literal" {
     }
 }
 
-test "Parser - function call" {
+test "Parser - function call expression, no arguments" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 = "add()";
+    const expected = "add()";
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = try stmt.toString(allocator);
+        // std.debug.print("{s}", .{s});
+        try std.testing.expectEqualStrings(expected, s);
+    }
+}
+
+test "Parser - function call expression, expression arguments" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -418,6 +441,34 @@ test "Parser - function call" {
     const src: []const u8 = "a + add(b * c) + d";
     const expected =
         \\((a + add((b * c))) + d)
+    ;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    const program = try parser.parse();
+
+    try expect(program.statements.items.len == 1);
+    for (program.statements.items) |stmt| {
+        const s = try stmt.toString(allocator);
+        // std.debug.print("{s}", .{s});
+        try std.testing.expectEqualStrings(expected, s);
+    }
+}
+
+test "Parser - function call, function literal callee" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\ let func = fn(x,y) {
+        \\  return x + y;
+        \\ }(foo, -b / d + 5);
+    ;
+    const expected =
+        \\let func = fn(x, y) {
+        \\return (x + y);
+        \\}(foo, (((-b) / d) + 5));
     ;
 
     var lexer: Lexer = Lexer.init(src);
