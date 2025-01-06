@@ -20,6 +20,7 @@ pub const ParserError = error{
     InvalidProgram,
     InvalidPrefix,
     InvalidInfix,
+    InvalidExpressionList,
 };
 
 pub fn printParserError(self: ParserError) void {
@@ -34,7 +35,7 @@ const Precedence = enum {
     product,
     prefix,
     call,
-    index,
+    // index,
 
     fn isLessThan(self: Precedence, other: Precedence) bool {
         return @intFromEnum(self) < @intFromEnum(other);
@@ -48,7 +49,7 @@ fn tokenPrecedenceMap(token: Token) Precedence {
         .Plus, .Minus => .sum,
         .Slash, .Asterisk => .product,
         .LeftParen => .call,
-        .LeftBracket => .index,
+        // .LeftBracket => .index,
         else => .lowest,
     };
 }
@@ -157,7 +158,7 @@ pub const Parser = struct {
         while (self.peek_token != TokenTag.Semicolon and precedence.isLessThan(tokenPrecedenceMap(self.peek_token))) {
             const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
             left_expr_ptr.* = left_expr;
-            left_expr = try self.parseInfixToken(self.peek_token, left_expr_ptr);
+            left_expr = try self.parseInfixToken(left_expr_ptr);
         }
         return left_expr;
     }
@@ -177,11 +178,11 @@ pub const Parser = struct {
         };
     }
 
-    fn parseInfixToken(self: *Parser, token: Token, left: *ast.Expression) ParserError!ast.Expression {
+    fn parseInfixToken(self: *Parser, left: *ast.Expression) ParserError!ast.Expression {
+        const token = self.peek_token;
         self.advance();
         return switch (token) {
-            .Plus, .Minus, .Slash, .Asterisk, .Equal, .NotEqual, .LessThan, .GreaterThan => .{ .infix = try self.parseInfixExpression(left) },
-            // .LeftParen => .{ .call = try self.parseCallExpression(left) },
+            .LeftParen => .{ .call = try self.parseCallExpression(left) },
             // .LeftBracket => .{ .index = try self.parseIndexExpression(left) },
             else => .{ .infix = try self.parseInfixExpression(left) },
         };
@@ -248,8 +249,8 @@ pub const Parser = struct {
     fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
         try self.expectPeek(.LeftParen);
         var parameters: ?ArrayList(ast.Identifier) = null;
+        self.advance();
         if (self.peek_token != TokenTag.RightParen) {
-            self.advance();
             var list = ArrayList(ast.Identifier).init(self.allocator);
             while (self.current_token != .RightParen) : (self.advance()) {
                 // Parse function params.
@@ -266,6 +267,25 @@ pub const Parser = struct {
         const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
         body_ptr.* = body;
         return .{ .parameters = parameters, .body = body_ptr };
+    }
+
+    fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.Call {
+        var args: ?ArrayList(ast.Expression) = null;
+        if (self.peek_token == TokenTag.RightParen) {
+            self.advance();
+            return ast.Call{ .args = args, .callee = callee };
+        }
+
+        // Parse function arguments.
+        self.advance();
+        var list = ArrayList(ast.Expression).init(self.allocator);
+        while (self.current_token != TokenTag.RightParen) : (self.advance()) {
+            const expr = try self.parseExpression(.lowest);
+            list.append(expr) catch return ParserError.InvalidExpressionList;
+            self.chompToken(.Comma);
+        }
+        args = list;
+        return ast.Call{ .args = args, .callee = callee };
     }
 
     // Expressions
@@ -298,10 +318,6 @@ pub const Parser = struct {
         };
     }
 
-    fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.Call {
-        return ast.Call{ .callee = callee, .args = try self.parseExpressionList(.RightParen) };
-    }
-
     /// Advances the parser if `peek_token` matches `expected`. Otherwise returns a `ParserError`.
     fn expectPeek(self: *Parser, expected: TokenTag) ParserError!void {
         if (self.peek_token == expected) {
@@ -317,17 +333,9 @@ pub const Parser = struct {
         self.lexer.print();
         std.debug.print(",\n", .{});
         std.debug.print("    current_token: ", .{});
-        if (self.current_token) |current_token| {
-            current_token.print();
-        } else {
-            std.debug.print("null", .{});
-        }
+        self.current_token.print();
         std.debug.print(",\n    peek_token: ", .{});
-        if (self.peek_token) |peek_token| {
-            peek_token.print();
-        } else {
-            std.debug.print("null", .{});
-        }
+        self.peek_token.print();
         std.debug.print("\n}}", .{});
     }
 };

@@ -7,6 +7,12 @@ const AllocPrintError = std.fmt.AllocPrintError;
 
 pub const ToStringError = std.mem.Allocator.Error || AllocPrintError;
 
+// pub const Node = union(enum) {
+//     statement: *Statement,
+//     program: *Program,
+//     expression: *Expression,
+// };
+
 pub const Program = struct {
     statements: ArrayList(Statement),
 
@@ -68,12 +74,11 @@ pub const Expression = union(enum) {
     infix: InfixExpression,
     if_expression: IfExpression,
     function: FunctionLiteral,
-    // call: Call,
+    call: Call,
     // array: Array,
     // index: Index,
 
     pub fn print(self: Expression) void {
-        // std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
         switch (self) {
             .identifier => |identifier| identifier.print(),
             .integer => |integer| integer.print(),
@@ -83,15 +88,13 @@ pub const Expression = union(enum) {
             .infix => |infix| infix.print(),
             .if_expression => |if_expr| if_expr.print(),
             .function => |func| func.print(),
-            // call => ,
+            .call => |call| call.print(),
             // array => ,
             // index => ,
         }
-        // std.debug.print(" }}", .{});
     }
 
     pub fn toString(self: Expression, allocator: Allocator) ![]u8 {
-        // std.debug.print("ast.Expression{{ .{s} = ", .{@tagName(self)});
         return switch (self) {
             .identifier => |identifier| try identifier.toString(allocator),
             .integer => |integer| try integer.toString(allocator),
@@ -101,11 +104,10 @@ pub const Expression = union(enum) {
             .infix => |infix| try infix.toString(allocator),
             .if_expression => |if_expr| try if_expr.toString(allocator),
             .function => |func| try func.toString(allocator),
-            // call => ,
+            .call => |call| try call.toString(allocator),
             // array => ,
             // index => ,
         };
-        // std.debug.print(" }}", .{});
     }
 };
 
@@ -312,8 +314,8 @@ pub const IfExpression = struct {
 };
 
 pub const FunctionLiteral = struct {
-    parameters: ?ArrayList(Identifier) = null,
     body: *BlockStatement,
+    parameters: ?ArrayList(Identifier) = null,
 
     pub fn print(self: FunctionLiteral) void {
         std.debug.print("fn(", .{});
@@ -348,5 +350,38 @@ pub const FunctionLiteral = struct {
 
 pub const Call = struct {
     callee: *Expression,
-    args: ArrayList(Expression),
+    args: ?ArrayList(Expression),
+
+    pub fn print(self: Call) void {
+        self.callee.print();
+        std.debug.print("(", .{});
+        if (self.args) |args| {
+            for (0..args.items.len, args.items) |idx, arg| {
+                arg.print();
+                if (idx < args.items.len - 1) {
+                    std.debug.print(", ", .{});
+                }
+            }
+        }
+        std.debug.print(")", .{});
+    }
+
+    pub fn toString(self: Call, allocator: Allocator) ToStringError![]u8 {
+        const callee = try self.callee.toString(allocator);
+
+        var list = ArrayList(u8).init(allocator);
+        defer list.deinit();
+
+        if (self.args) |args| {
+            for (0..args.items.len, args.items) |idx, arg| {
+                const expr = try arg.toString(allocator);
+                try list.appendSlice(expr);
+                if (idx < args.items.len - 1) {
+                    try list.appendSlice(", ");
+                }
+            }
+        }
+        const s = try std.fmt.allocPrint(allocator, "{s}({s})", .{ callee, list.items });
+        return s;
+    }
 };
