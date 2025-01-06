@@ -39,5 +39,4 @@ pub fn start() !void {
             }
         } else |_| {}
     }
-    return;
 }
