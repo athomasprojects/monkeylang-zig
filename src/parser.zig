@@ -60,6 +60,7 @@ pub const Parser = struct {
     peek_token: Token = .Eof,
     allocator: Allocator,
 
+    /// Returns a newly initialized parser.
     pub fn init(lexer: *Lexer, allocator: Allocator) Parser {
         var parser: Parser = .{
             .lexer = lexer,
@@ -70,6 +71,7 @@ pub const Parser = struct {
         return parser;
     }
 
+    /// Parses the parser's input stream into a list of `ast.Statement` nodes.
     pub fn parse(self: *Parser) !ast.Program {
         var statements = ArrayList(ast.Statement).init(self.allocator);
 
