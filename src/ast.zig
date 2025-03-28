@@ -7,12 +7,6 @@ const AllocPrintError = std.fmt.AllocPrintError;
 
 pub const ToStringError = std.mem.Allocator.Error || AllocPrintError;
 
-// pub const Node = union(enum) {
-//     statement: *Statement,
-//     program: *Program,
-//     expression: *Expression,
-// };
-
 pub const Program = struct {
     statements: ArrayList(Statement),
 
@@ -65,7 +59,21 @@ pub const Statement = union(enum) {
     }
 };
 
-pub const Expression = union(enum) {
+pub const ExpressionTag = enum {
+    identifier,
+    integer,
+    boolean,
+    string,
+    prefix,
+    infix,
+    if_expression,
+    function,
+    call,
+    // array,
+    // index,
+};
+
+pub const Expression = union(ExpressionTag) {
     identifier: Identifier,
     integer: Integer,
     boolean: Boolean,

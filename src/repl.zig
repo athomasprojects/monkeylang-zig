@@ -5,6 +5,8 @@ const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
 const printParserError = @import("parser.zig").printParserError;
 const ast = @import("ast.zig");
+const Evaluator = @import("eval.zig").Evaluator;
+const object = @import("object.zig");
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
@@ -28,10 +30,15 @@ pub fn start() !void {
                 } else {
                     var lexer: Lexer = Lexer.init(str);
                     var parser: Parser = Parser.init(&lexer, allocator);
+                    var evaluator: Evaluator = Evaluator.init(allocator);
                     // Print parser statements for now. Eventually we will only print the output of the evaulated source code.
                     // It's ok if we error for input that cannot be parsed for now, as it helps with debugging. Eventually we'll provide an error message and properly handle the error.
                     var program = try parser.parse();
-                    program.printStatements();
+                    // program.printStatements();
+
+                    const obj: *object.Object = try evaluator.evalProgram(&program);
+                    obj.print();
+
                     // if (parser.parse()) |program| {
                     //     program.printStatements();
                     // } else |err| printParserError(err);
