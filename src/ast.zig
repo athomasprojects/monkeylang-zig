@@ -3,9 +3,9 @@ const Token = @import("token.zig").Token;
 const TokenTag = @import("token.zig").TokenTag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
-const AllocPrintError = std.fmt.AllocPrintError;
+// const AllocPrintError = std.fmt.AllocPrintError;
 
-pub const ToStringError = std.mem.Allocator.Error || AllocPrintError;
+pub const ToStringError = std.mem.Allocator.Error || std.fmt.AllocPrintError;
 
 pub const Program = struct {
     statements: ArrayList(Statement),
@@ -259,7 +259,7 @@ pub const PrefixExpression = struct {
         std.debug.print(")", .{});
     }
 
-    pub fn toString(self: PrefixExpression, allocator: Allocator) AllocPrintError![]u8 {
+    pub fn toString(self: PrefixExpression, allocator: Allocator) ToStringError![]u8 {
         const operator = try self.operator.toString(allocator);
         const right = try self.right.toString(allocator);
         const s = try std.fmt.allocPrint(allocator, "({s}{s})", .{ operator, right });
@@ -282,7 +282,7 @@ pub const InfixExpression = struct {
         std.debug.print(")", .{});
     }
 
-    pub fn toString(self: InfixExpression, allocator: Allocator) AllocPrintError![]u8 {
+    pub fn toString(self: InfixExpression, allocator: Allocator) ToStringError![]u8 {
         const left = try self.left.toString(allocator);
         const operator = try self.operator.toString(allocator);
         const right = try self.right.toString(allocator);

@@ -76,6 +76,8 @@ pub const Parser = struct {
         var statements = ArrayList(ast.Statement).init(self.allocator);
 
         while (self.current_token != TokenTag.Eof) {
+            // Todo: check if parseStatement returns an error and switch over the ParserError set to handle each respective case.
+            // In --release=fast mode the program will just fail and Zig won't return the error stack trace.
             const s = try self.parseStatement();
             statements.append(s) catch return ParserError.InvalidProgram;
             self.advance();

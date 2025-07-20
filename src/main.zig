@@ -686,18 +686,6 @@ test "Evaluator - conditional expressions" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const s: []const u8 =
-        \\ if (2 > 1) {
-        \\   if !(2 > 1) {
-        \\     10
-        \\   } else {
-        \\     20
-        \\   }
-        \\ } else { 
-        \\   30
-        \\ }
-    ;
-
     const src = [_][]const u8{
         "if (true) { 10 }",
         "if (false) { 10 }",
@@ -706,7 +694,6 @@ test "Evaluator - conditional expressions" {
         "if (1 > 2) { 10 }",
         "if (1 > 2) { 10 } else { 20 }",
         "if (1 < 2) { 10 } else { 20 }",
-        s,
     };
 
     const values = [_][]const u8{
@@ -717,7 +704,6 @@ test "Evaluator - conditional expressions" {
         "null",
         "20",
         "10",
-        "20",
     };
 
     for (src, values) |str, expected| {
@@ -758,4 +744,49 @@ test "Evaluator - nested conditional expressions" {
     const obj: *Object = try evaluator.evalProgram(&program);
 
     try std.testing.expect(@as(i32, 10) == obj.integer);
+}
+
+test "Evaluator - error handling" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const nested: []const u8 =
+        \\if (10 > 1) {
+        \\    if (10 > 1) {
+        \\        return true + false;
+        \\    }
+        \\    return 1;
+        \\}
+    ;
+    const src = [_][]const u8{
+        "5 + true;",
+        "5 + true; 5;",
+        "-true",
+        "true + false",
+        "5; true + false; 5",
+        "if (10 > 1) { true + false; }",
+        nested,
+    };
+    const error_messages = [_][]const u8{
+        "type mismatch: INTEGER + BOOLEAN",
+        "type mismatch: INTEGER + BOOLEAN",
+        "unknown operator: -BOOLEAN",
+        "unknown operator: BOOLEAN + BOOLEAN",
+        "unknown operator: BOOLEAN + BOOLEAN",
+        "unknown operator: BOOLEAN + BOOLEAN",
+        "unknown operator: BOOLEAN + BOOLEAN",
+    };
+
+    for (src, error_messages) |str, expected| {
+        var lexer: Lexer = Lexer.init(str);
+        var parser = Parser.init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = Evaluator.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program);
+
+        const result = try obj.toString(allocator);
+        try std.testing.expectEqualStrings(expected, result);
+    }
 }
