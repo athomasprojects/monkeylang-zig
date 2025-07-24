@@ -12,7 +12,7 @@ const Token = token.Token;
 const TokenTag = token.TokenTag;
 const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
-const Evaluator = @import("eval.zig").Evaluator;
+const Evaluator = @import("evaluator.zig").Evaluator;
 const Object = @import("object.zig").Object;
 const ast = @import("ast.zig");
 
