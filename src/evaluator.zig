@@ -1,9 +1,10 @@
 const std = @import("std");
 const ast = @import("ast.zig");
+const Token = @import("token.zig").Token;
 const Object = @import("object.zig").Object;
 const Error = @import("object.zig").Error;
 const ReturnValue = @import("object.zig").ReturnValue;
-const Token = @import("token.zig").Token;
+const Environment = @import("environment.zig").Environment;
 const Allocator = std.mem.Allocator;
 const StaticStringMap = std.static_string_map.StaticStringMap;
 
@@ -28,10 +29,10 @@ pub const Evaluator = struct {
         return .{ .allocator = allocator };
     }
 
-    pub fn evalProgram(self: *Evaluator, program: *ast.Program) !*Object {
+    pub fn evalProgram(self: *Evaluator, program: *ast.Program, env: *Environment) !*Object {
         var result: *Object = undefined;
         for (program.statements.items) |*statement| {
-            result = try self.evalStatement(statement);
+            result = try self.evalStatement(statement, env);
             switch (result.*) {
                 .return_ => |return_value| return return_value.value,
                 .error_ => return result,
@@ -41,13 +42,22 @@ pub const Evaluator = struct {
         return result;
     }
 
-    fn evalStatement(self: *Evaluator, statement: *const ast.Statement) !*Object {
+    fn evalStatement(self: *Evaluator, statement: *const ast.Statement, env: *Environment) !*Object {
         return switch (statement.*) {
-            .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression),
+            .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression, env),
+            .let_statement => |let_statement| {
+                const value = try self.evalExpression(let_statement.value, env);
+                switch (value.*) {
+                    .error_ => return value,
+                    else => {},
+                }
+                try env.put(let_statement.name.value, value);
+                return &NULL_OBJECT;
+            },
             .block_statement => |*block_statement| {
                 var result: *Object = undefined;
                 for (block_statement.statements.items) |*stmt| {
-                    result = try self.evalStatement(stmt);
+                    result = try self.evalStatement(stmt, env);
                     switch (result.*) {
                         .return_, .error_ => return result,
                         else => {},
@@ -56,22 +66,21 @@ pub const Evaluator = struct {
                 return result;
             },
             .return_statement => |return_statement| {
-                const value: *Object = try self.evalExpression(return_statement.value);
+                const value: *Object = try self.evalExpression(return_statement.value, env);
                 const object_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
                 object_ptr.* = Object{ .return_ = ReturnValue{ .value = value } };
                 return object_ptr;
             },
-            else => &NULL_OBJECT,
         };
     }
 
-    fn evalExpression(self: *Evaluator, expr: *ast.Expression) !*Object {
+    fn evalExpression(self: *Evaluator, expr: *ast.Expression, env: *Environment) !*Object {
         return switch (expr.*) {
             .integer => |integer| try self.createIntegerObject(integer.value),
             .boolean => |boolean| Evaluator.createBooleanObject(boolean.value),
             .string => |string| try self.createStringObject(string.value),
             .prefix => |prefix_expr| {
-                const right = try self.evalExpression(prefix_expr.right);
+                const right = try self.evalExpression(prefix_expr.right, env);
                 switch (right.*) {
                     .error_ => return right,
                     else => {},
@@ -79,13 +88,13 @@ pub const Evaluator = struct {
                 return try self.evalPrefixExpression(&prefix_expr.operator, right);
             },
             .infix => |infix_expr| {
-                const left = try self.evalExpression(infix_expr.left);
+                const left = try self.evalExpression(infix_expr.left, env);
                 switch (left.*) {
                     .error_ => return left,
                     else => {},
                 }
 
-                const right = try self.evalExpression(infix_expr.right);
+                const right = try self.evalExpression(infix_expr.right, env);
                 switch (right.*) {
                     .error_ => return right,
                     else => {},
@@ -93,7 +102,8 @@ pub const Evaluator = struct {
 
                 return try self.evalInfixExpression(&infix_expr.operator, left, right);
             },
-            .if_expression => |if_expr| try self.evalIfExpression(&if_expr),
+            .if_expression => |if_expr| try self.evalIfExpression(&if_expr, env),
+            .identifier => |identifier| try self.evalIdentifier(&identifier, env),
             else => &NULL_OBJECT,
         };
     }
@@ -252,19 +262,32 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression) EvaluatorError!*Object {
-        const condition: *Object = self.evalExpression(if_expr.condition) catch return EvaluatorError.InvalidCondition;
+    fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression, env: *Environment) EvaluatorError!*Object {
+        const condition: *Object = self.evalExpression(if_expr.condition, env) catch return EvaluatorError.InvalidCondition;
         switch (condition.*) {
             .error_ => return condition,
             else => {},
         }
 
         if (isTruthy(condition)) {
-            return try self.evalStatement(&ast.Statement{ .block_statement = if_expr.then_branch.* });
+            return try self.evalStatement(&ast.Statement{ .block_statement = if_expr.then_branch.* }, env);
         } else if (if_expr.else_branch) |else_branch| {
-            return try self.evalStatement(&ast.Statement{ .block_statement = else_branch.* });
+            return try self.evalStatement(&ast.Statement{ .block_statement = else_branch.* }, env);
         } else {
             return &NULL_OBJECT;
+        }
+    }
+
+    fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, env: *Environment) !*Object {
+        if (env.get(identifier.value)) |value| {
+            return value;
+        } else {
+            const msg: []const u8 = std.fmt.allocPrint(
+                self.allocator,
+                "identifier not found: {s}",
+                .{identifier.value},
+            ) catch return EvaluatorError.FailedAlloc;
+            return try self.newError(msg);
         }
     }
 

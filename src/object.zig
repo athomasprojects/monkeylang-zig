@@ -1,16 +1,7 @@
 const std = @import("std");
 const ast = @import("ast.zig");
 
-pub const ObjectTag = enum {
-    null_,
-    integer,
-    boolean,
-    string,
-    return_,
-    error_,
-};
-
-pub const Object = union(ObjectTag) {
+pub const Object = union(enum) {
     null_,
     integer: i32,
     boolean: bool,

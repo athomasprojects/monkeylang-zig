@@ -58,21 +58,7 @@ pub const Statement = union(enum) {
     }
 };
 
-pub const ExpressionTag = enum {
-    identifier,
-    integer,
-    boolean,
-    string,
-    prefix,
-    infix,
-    if_expression,
-    function,
-    call,
-    // array,
-    // index,
-};
-
-pub const Expression = union(ExpressionTag) {
+pub const Expression = union(enum) {
     identifier: Identifier,
     integer: Integer,
     boolean: Boolean,

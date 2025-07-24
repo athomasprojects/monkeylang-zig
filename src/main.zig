@@ -13,6 +13,7 @@ const TokenTag = token.TokenTag;
 const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
 const Evaluator = @import("evaluator.zig").Evaluator;
+const Environment = @import("environment.zig").Environment;
 const Object = @import("object.zig").Object;
 const ast = @import("ast.zig");
 
@@ -490,14 +491,16 @@ test "Evaluator - null" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const expected: []const u8 = "null";
+    const src: []const u8 = "null";
+    const expected: []const u8 = "identifier not found: null";
 
-    var lexer: Lexer = Lexer.init(expected);
+    var lexer: Lexer = Lexer.init(src);
     var parser = Parser.init(&lexer, allocator);
     var program = try parser.parse();
 
     var evaluator: Evaluator = Evaluator.init(allocator);
-    const obj: *Object = try evaluator.evalProgram(&program);
+    var env: Environment = Environment.init(allocator);
+    const obj: *Object = try evaluator.evalProgram(&program, &env);
 
     const result = try obj.toString(allocator);
     try std.testing.expectEqualStrings(expected, result);
@@ -516,7 +519,8 @@ test "Evaluator - boolean literal" {
         var program = try parser.parse();
 
         var evaluator: Evaluator = Evaluator.init(allocator);
-        const obj: *Object = try evaluator.evalProgram(&program);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
         try std.testing.expectEqualStrings(expected, result);
@@ -537,7 +541,8 @@ test "Evaluator - integer literal" {
         var program = try parser.parse();
 
         var evaluator: Evaluator = Evaluator.init(allocator);
-        const obj: *Object = try evaluator.evalProgram(&program);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected[i] == obj.integer);
     }
@@ -575,7 +580,8 @@ test "Evaluator - prefix operators" {
         var program = try parser.parse();
 
         var evaluator: Evaluator = Evaluator.init(allocator);
-        const obj: *Object = try evaluator.evalProgram(&program);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected == obj.boolean);
     }
@@ -615,7 +621,8 @@ test "Evaluator - integer expressions" {
         var program = try parser.parse();
 
         var evaluator: Evaluator = Evaluator.init(allocator);
-        const obj: *Object = try evaluator.evalProgram(&program);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected == obj.integer);
     }
@@ -675,7 +682,8 @@ test "Evaluator - boolean expressions" {
         var program = try parser.parse();
 
         var evaluator: Evaluator = Evaluator.init(allocator);
-        const obj: *Object = try evaluator.evalProgram(&program);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected == obj.boolean);
     }
@@ -712,7 +720,8 @@ test "Evaluator - conditional expressions" {
         var program = try parser.parse();
 
         var evaluator: Evaluator = Evaluator.init(allocator);
-        const obj: *Object = try evaluator.evalProgram(&program);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
         try std.testing.expectEqualStrings(expected, result);
@@ -741,7 +750,8 @@ test "Evaluator - nested conditional expressions" {
     var program = try parser.parse();
 
     var evaluator: Evaluator = Evaluator.init(allocator);
-    const obj: *Object = try evaluator.evalProgram(&program);
+    var env: Environment = Environment.init(allocator);
+    const obj: *Object = try evaluator.evalProgram(&program, &env);
 
     try std.testing.expect(@as(i32, 10) == obj.integer);
 }
@@ -784,9 +794,44 @@ test "Evaluator - error handling" {
         var program = try parser.parse();
 
         var evaluator: Evaluator = Evaluator.init(allocator);
-        const obj: *Object = try evaluator.evalProgram(&program);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
         try std.testing.expectEqualStrings(expected, result);
+    }
+}
+
+test "Evaluator - let statements" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src = [_][]const u8{
+        "let a = 5; a;",
+        "let a = 5 * 5; a;",
+        "let a = 5; let b = a; b;",
+        "let a = 5; let b = a; let c = a + b + 5; c;",
+        "let a = 5; let b = a; let c = a + b + 5; let d = if (c > a) { 99 } else { 100 }; d;",
+    };
+    const error_messages = [_]i32{
+        5,
+        25,
+        5,
+        15,
+        99,
+    };
+
+    for (src, error_messages) |str, expected| {
+        var lexer: Lexer = Lexer.init(str);
+        var parser = Parser.init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = Evaluator.init(allocator);
+        var env: Environment = Environment.init(allocator);
+        const obj: *Object = try evaluator.evalProgram(&program, &env);
+
+        // const result = try obj.toString(allocator);
+        try std.testing.expect(expected == obj.integer);
     }
 }
