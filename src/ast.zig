@@ -3,7 +3,6 @@ const Token = @import("token.zig").Token;
 const TokenTag = @import("token.zig").TokenTag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
-// const AllocPrintError = std.fmt.AllocPrintError;
 
 pub const ToStringError = std.mem.Allocator.Error || std.fmt.AllocPrintError;
 

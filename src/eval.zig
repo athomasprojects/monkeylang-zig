@@ -1,6 +1,8 @@
 const std = @import("std");
 const ast = @import("ast.zig");
-const obj = @import("object.zig");
+const Object = @import("object.zig").Object;
+const Error = @import("object.zig").Error;
+const ReturnValue = @import("object.zig").ReturnValue;
 const Token = @import("token.zig").Token;
 const Allocator = std.mem.Allocator;
 const StaticStringMap = std.static_string_map.StaticStringMap;
@@ -11,13 +13,13 @@ pub const EvaluatorError = error{
     InvalidCondition,
 };
 
-const BUILTIN_TRUE: obj.Object = .{ .boolean = true };
-const BUILTIN_FALSE: obj.Object = .{ .boolean = false };
-const BUILTIN_NULL: obj.Object = .null_;
+const BUILTIN_TRUE: Object = .{ .boolean = true };
+const BUILTIN_FALSE: Object = .{ .boolean = false };
+const BUILTIN_NULL: Object = .null_;
 
-var TRUE_OBJECT: obj.Object = BUILTIN_TRUE;
-var FALSE_OBJECT: obj.Object = BUILTIN_FALSE;
-var NULL_OBJECT: obj.Object = BUILTIN_NULL;
+var TRUE_OBJECT: Object = BUILTIN_TRUE;
+var FALSE_OBJECT: Object = BUILTIN_FALSE;
+var NULL_OBJECT: Object = BUILTIN_NULL;
 
 pub const Evaluator = struct {
     allocator: Allocator,
@@ -26,8 +28,8 @@ pub const Evaluator = struct {
         return .{ .allocator = allocator };
     }
 
-    pub fn evalProgram(self: *Evaluator, program: *ast.Program) !*obj.Object {
-        var result: *obj.Object = undefined;
+    pub fn evalProgram(self: *Evaluator, program: *ast.Program) !*Object {
+        var result: *Object = undefined;
         for (program.statements.items) |*statement| {
             result = try self.evalStatement(statement);
             switch (result.*) {
@@ -39,11 +41,11 @@ pub const Evaluator = struct {
         return result;
     }
 
-    fn evalStatement(self: *Evaluator, statement: *const ast.Statement) !*obj.Object {
+    fn evalStatement(self: *Evaluator, statement: *const ast.Statement) !*Object {
         return switch (statement.*) {
             .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression),
             .block_statement => |*block_statement| {
-                var result: *obj.Object = undefined;
+                var result: *Object = undefined;
                 for (block_statement.statements.items) |*stmt| {
                     result = try self.evalStatement(stmt);
                     switch (result.*) {
@@ -54,16 +56,16 @@ pub const Evaluator = struct {
                 return result;
             },
             .return_statement => |return_statement| {
-                const value: *obj.Object = try self.evalExpression(return_statement.value);
-                const object_ptr: *obj.Object = self.allocator.create(obj.Object) catch return EvaluatorError.FailedAlloc;
-                object_ptr.* = obj.Object{ .return_ = obj.ReturnValue{ .value = value } };
+                const value: *Object = try self.evalExpression(return_statement.value);
+                const object_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
+                object_ptr.* = Object{ .return_ = ReturnValue{ .value = value } };
                 return object_ptr;
             },
             else => &NULL_OBJECT,
         };
     }
 
-    fn evalExpression(self: *Evaluator, expr: *ast.Expression) !*obj.Object {
+    fn evalExpression(self: *Evaluator, expr: *ast.Expression) !*Object {
         return switch (expr.*) {
             .integer => |integer| try self.createIntegerObject(integer.value),
             .boolean => |boolean| Evaluator.createBooleanObject(boolean.value),
@@ -96,13 +98,13 @@ pub const Evaluator = struct {
         };
     }
 
-    fn createIntegerObject(self: *Evaluator, integer: i32) !*obj.Object {
-        const integer_ptr: *obj.Object = self.allocator.create(obj.Object) catch return EvaluatorError.FailedAlloc;
-        integer_ptr.* = obj.Object{ .integer = integer };
+    fn createIntegerObject(self: *Evaluator, integer: i32) !*Object {
+        const integer_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
+        integer_ptr.* = Object{ .integer = integer };
         return integer_ptr;
     }
 
-    fn createBooleanObject(boolean: bool) *obj.Object {
+    fn createBooleanObject(boolean: bool) *Object {
         if (boolean) {
             return &TRUE_OBJECT;
         } else {
@@ -110,13 +112,13 @@ pub const Evaluator = struct {
         }
     }
 
-    fn createStringObject(self: *Evaluator, string: []const u8) !*obj.Object {
-        const string_ptr: *obj.Object = self.allocator.create(obj.Object) catch return EvaluatorError.FailedAlloc;
-        string_ptr.* = obj.Object{ .string = string };
+    fn createStringObject(self: *Evaluator, string: []const u8) !*Object {
+        const string_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
+        string_ptr.* = Object{ .string = string };
         return string_ptr;
     }
 
-    fn evalPrefixExpression(self: *Evaluator, operator: *const Token, right: *obj.Object) !*obj.Object {
+    fn evalPrefixExpression(self: *Evaluator, operator: *const Token, right: *Object) !*Object {
         return switch (operator.*) {
             .Bang => try evalBangOperatorExpression(right),
             .Minus => try self.evalMinusOperatorExpression(right),
@@ -132,7 +134,7 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalInfixExpression(self: *Evaluator, operator: *const Token, left: *obj.Object, right: *obj.Object) !*obj.Object {
+    fn evalInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
         return switch (left.*) {
             .integer => switch (right.*) {
                 .integer => try self.evalIntegerInfixExpression(operator, left, right),
@@ -186,7 +188,7 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalIntegerInfixExpression(self: *Evaluator, operator: *const Token, left: *obj.Object, right: *obj.Object) !*obj.Object {
+    fn evalIntegerInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
         const left_val = left.integer;
         const right_val = right.integer;
         return switch (operator.*) {
@@ -213,7 +215,7 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalStringInfixExpression(self: *Evaluator, operator: *const Token, left: *obj.Object, right: *obj.Object) !*obj.Object {
+    fn evalStringInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
         return switch (operator.*) {
             .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
             .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
@@ -229,14 +231,14 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalBangOperatorExpression(right: *obj.Object) !*obj.Object {
+    fn evalBangOperatorExpression(right: *Object) !*Object {
         return switch (right.*) {
             .boolean => |boolean| if (boolean) &FALSE_OBJECT else &TRUE_OBJECT,
             else => &FALSE_OBJECT,
         };
     }
 
-    fn evalMinusOperatorExpression(self: *Evaluator, right: *obj.Object) !*obj.Object {
+    fn evalMinusOperatorExpression(self: *Evaluator, right: *Object) !*Object {
         return switch (right.*) {
             .integer => |value| try self.createIntegerObject(-value),
             else => {
@@ -250,8 +252,8 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression) EvaluatorError!*obj.Object {
-        const condition: *obj.Object = self.evalExpression(if_expr.condition) catch return EvaluatorError.InvalidCondition;
+    fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression) EvaluatorError!*Object {
+        const condition: *Object = self.evalExpression(if_expr.condition) catch return EvaluatorError.InvalidCondition;
         switch (condition.*) {
             .error_ => return condition,
             else => {},
@@ -266,11 +268,11 @@ pub const Evaluator = struct {
         }
     }
 
-    fn nativeBoolToBooleanObject(native: bool) *obj.Object {
+    fn nativeBoolToBooleanObject(native: bool) *Object {
         return if (native) &TRUE_OBJECT else &FALSE_OBJECT;
     }
 
-    fn isTruthy(object: *obj.Object) bool {
+    fn isTruthy(object: *Object) bool {
         return switch (object.*) {
             .null_ => false,
             .boolean => |boolean| boolean,
@@ -278,9 +280,9 @@ pub const Evaluator = struct {
         };
     }
 
-    fn newError(self: *Evaluator, message: []const u8) !*obj.Object {
-        const error_ptr: *obj.Object = self.allocator.create(obj.Object) catch return EvaluatorError.FailedAlloc;
-        error_ptr.* = .{ .error_ = obj.Error{ .message = message } };
+    fn newError(self: *Evaluator, message: []const u8) !*Object {
+        const error_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
+        error_ptr.* = .{ .error_ = Error{ .message = message } };
         return error_ptr;
     }
 };
