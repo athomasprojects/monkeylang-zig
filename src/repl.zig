@@ -6,7 +6,7 @@ const Parser = @import("parser.zig").Parser;
 const printParserError = @import("parser.zig").printParserError;
 const ast = @import("ast.zig");
 const Evaluator = @import("evaluator.zig").Evaluator;
-const object = @import("object.zig");
+const Object = @import("object.zig").Object;
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
@@ -36,7 +36,7 @@ pub fn start() !void {
                     var program = try parser.parse();
                     // program.printStatements();
 
-                    const obj: *object.Object = try evaluator.evalProgram(&program);
+                    const obj: *Object = try evaluator.evalProgram(&program);
                     obj.print();
 
                     // if (parser.parse()) |program| {
