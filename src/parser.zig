@@ -252,17 +252,21 @@ pub const Parser = struct {
 
     fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
         try self.expectPeek(.LeftParen);
-        var parameters: ?ArrayList(ast.Identifier) = null;
         self.advance();
-        if (self.peek_token != TokenTag.RightParen) {
-            var list = ArrayList(ast.Identifier).init(self.allocator);
-            while (self.current_token != .RightParen) : (self.advance()) {
-                // Parse function params.
-                const ident = try self.parseIdentifier();
-                list.append(ident) catch return ParserError.FailedAlloc;
-                self.chompToken(.Comma);
-            }
-            parameters = list;
+
+        var parameters: ?ArrayList(ast.Identifier) = null;
+        switch (self.current_token) {
+            .RightParen => {}, // No parameters to parse.
+            else => {
+                var list = ArrayList(ast.Identifier).init(self.allocator);
+                while (self.current_token != .RightParen) : (self.advance()) {
+                    // Parse function params.
+                    const ident = try self.parseIdentifier();
+                    list.append(ident) catch return ParserError.FailedAlloc;
+                    self.chompToken(.Comma);
+                }
+                parameters = list;
+            },
         }
 
         // Parse function body.
