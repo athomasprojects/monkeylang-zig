@@ -835,3 +835,28 @@ test "Evaluator - let statements" {
         try std.testing.expect(expected == obj.integer);
     }
 }
+
+test "Evaluator - function literals" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\let add = fn(a,b) { a + b };
+        \\let sub = fn(a,b) { a - b };
+        \\let applyFunc = fn(a, b, func){ { func(a,b) };
+        \\applyFunc(2, 2, add);
+    ;
+    const expected: i32 = 4;
+
+    var lexer: Lexer = Lexer.init(src);
+    var parser = Parser.init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = Evaluator.init(allocator);
+    var env: Environment = Environment.init(allocator);
+    const obj: *Object = try evaluator.evalProgram(&program, &env);
+
+    // const result = try obj.toString(allocator);
+    try std.testing.expect(expected == obj.integer);
+}

@@ -1,5 +1,9 @@
 const std = @import("std");
 const ast = @import("ast.zig");
+const Environment = @import("environment.zig").Environment;
+const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
+const ToStringError = ast.ToStringError;
 
 pub const Object = union(enum) {
     null_,
@@ -7,6 +11,7 @@ pub const Object = union(enum) {
     boolean: bool,
     string: []const u8,
     return_: ReturnValue,
+    function: Function,
     error_: Error,
 
     pub fn print(self: Object) void {
@@ -15,6 +20,7 @@ pub const Object = union(enum) {
             .integer => |integer| std.debug.print("{d}", .{integer}),
             .boolean => |boolean| std.debug.print("{}", .{boolean}),
             .string => |string| std.debug.print("\"{s}\"", .{string}),
+            .function => |function| function.print(),
             .return_ => |return_value| return_value.value.print(),
             .error_ => |error_| error_.print(),
         }
@@ -39,6 +45,7 @@ pub const Object = union(enum) {
                 "\"{s}\"",
                 .{string},
             ),
+            .function => |function| function.toString(allocator),
             .return_ => |return_value| return_value.value.toString(allocator),
             .error_ => |error_| try error_.toString(allocator),
         };
@@ -52,6 +59,7 @@ pub const Object = union(enum) {
             .string => "STRING",
             // Note: In release mode the compiler uses optimizers that assume this prong will never be hit in order to perform optimizations. It will not panic if the prong is hit!
             // Todo: Handle error message for _unreachable_  prong.
+            .function => "FUNCTION",
             .return_ => unreachable,
             .error_ => "ERROR",
         };
@@ -60,6 +68,42 @@ pub const Object = union(enum) {
 
 pub const ReturnValue = struct {
     value: *Object,
+};
+
+pub const Function = struct {
+    parameters: ?ArrayList(ast.Identifier) = null,
+    body: *ast.BlockStatement,
+    env: *Environment,
+
+    pub fn print(self: Function) void {
+        std.debug.print("fn(", .{});
+        if (self.parameters) |parameters| {
+            for (0..parameters.items.len, parameters.items) |idx, ident| {
+                ident.print();
+                if (idx < parameters.items.len - 1) {
+                    std.debug.print(", ", .{});
+                }
+            }
+        }
+        std.debug.print(") ", .{});
+        self.body.print();
+    }
+
+    pub fn toString(self: Function, allocator: Allocator) ToStringError![]u8 {
+        var list = ArrayList(u8).init(allocator);
+        defer list.deinit();
+        if (self.parameters) |parameters| {
+            for (0..parameters.items.len, parameters.items) |idx, ident| {
+                try list.appendSlice(ident.value);
+                if (idx < parameters.items.len - 1) {
+                    try list.appendSlice(", ");
+                }
+            }
+        }
+        const body = try self.body.toString(allocator);
+        const s = try std.fmt.allocPrint(allocator, "fn({s}) {s}", .{ list.items, body });
+        return s;
+    }
 };
 
 pub const Error = struct {

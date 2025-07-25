@@ -2,9 +2,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const StringHashMap = std.StringHashMap;
 const Object = @import("object.zig").Object;
-const EvaluatorError = @import("evaluator.zig").EvaluatorError;
 
 pub const Environment = struct {
+    outer: ?*Environment = null,
     allocator: Allocator,
     store: StringHashMap(*Object),
 
@@ -15,11 +15,27 @@ pub const Environment = struct {
         };
     }
 
+    pub fn initEnclosed(allocator: Allocator, outer: *Environment) Environment {
+        return .{
+            .outer = outer,
+            .allocator = allocator,
+            .store = StringHashMap(*Object).init(allocator),
+        };
+    }
+
     pub fn get(self: *Environment, key: []const u8) ?*Object {
-        return self.store.get(key);
+        if (self.store.get(key)) |name| {
+            return name;
+        }
+
+        if (self.outer) |outer| {
+            return outer.get(key);
+        } else {
+            return null;
+        }
     }
 
     pub fn put(self: *Environment, key: []const u8, value: *Object) !void {
-        self.store.put(key, value) catch return EvaluatorError.FailedAlloc;
+        try self.store.put(key, value);
     }
 };

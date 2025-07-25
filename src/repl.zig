@@ -29,13 +29,16 @@ pub fn start() !void {
         if (stdin.readUntilDelimiterOrEof(buf[index..], '\n')) |input| {
             if (input) |str| {
                 index += str.len;
-                if (std.mem.eql(u8, str, "quit")) {
+                if (str.len == 0) {
+                    stdout.print("", .{}) catch {};
+                } else if (std.mem.eql(u8, str, "quit")) {
                     break;
                 } else {
                     var lexer: Lexer = Lexer.init(str);
                     var parser: Parser = Parser.init(&lexer, allocator);
 
-                    // It's ok if we error for input that cannot be parsed for now, as it helps with debugging. Eventually we'll provide an error message and properly handle the error.
+                    // It's ok if we error for input that cannot be parsed for now, as it helps with debugging.
+                    // Eventually we'll provide an error message and properly handle the error.
                     var program = try parser.parse();
                     // program.printStatements();
 

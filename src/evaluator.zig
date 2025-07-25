@@ -3,10 +3,12 @@ const ast = @import("ast.zig");
 const Token = @import("token.zig").Token;
 const Object = @import("object.zig").Object;
 const Error = @import("object.zig").Error;
+const Function = @import("object.zig").Function;
 const ReturnValue = @import("object.zig").ReturnValue;
 const Environment = @import("environment.zig").Environment;
 const Allocator = std.mem.Allocator;
 const StaticStringMap = std.static_string_map.StaticStringMap;
+const ArrayList = std.ArrayList;
 
 pub const EvaluatorError = error{
     FailedAlloc,
@@ -51,11 +53,11 @@ pub const Evaluator = struct {
                     .error_ => return value,
                     else => {},
                 }
-                try env.put(let_statement.name.value, value);
+                env.put(let_statement.name.value, value) catch return EvaluatorError.FailedAlloc;
                 return &NULL_OBJECT;
             },
             .block_statement => |*block_statement| {
-                var result: *Object = undefined;
+                var result: *Object = &NULL_OBJECT;
                 for (block_statement.statements.items) |*stmt| {
                     result = try self.evalStatement(stmt, env);
                     switch (result.*) {
@@ -104,7 +106,28 @@ pub const Evaluator = struct {
             },
             .if_expression => |if_expr| try self.evalIfExpression(&if_expr, env),
             .identifier => |identifier| try self.evalIdentifier(&identifier, env),
-            else => &NULL_OBJECT,
+            .function => |function| try self.createFunctionLiteralObject(&function, env),
+            .call => |call| {
+                const function = try self.evalExpression(call.callee, env);
+                switch (function.*) {
+                    .error_ => return function,
+                    else => {},
+                }
+
+                var evaled: *Object = &NULL_OBJECT;
+                var evaled_args = std.ArrayList(*Object).init(self.allocator);
+                if (call.args) |args| {
+                    for (args.items) |*arg| {
+                        evaled = try self.evalExpression(arg, env);
+                        switch (evaled.*) {
+                            .error_ => return evaled,
+                            else => {},
+                        }
+                        evaled_args.append(evaled) catch return EvaluatorError.FailedAlloc;
+                    }
+                }
+                return try self.applyFunction(function, evaled_args.items);
+            },
         };
     }
 
@@ -126,6 +149,18 @@ pub const Evaluator = struct {
         const string_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
         string_ptr.* = Object{ .string = string };
         return string_ptr;
+    }
+
+    fn createFunctionLiteralObject(self: *Evaluator, func_literal: *const ast.FunctionLiteral, env: *Environment) !*Object {
+        const func_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
+        func_ptr.* = Object{
+            .function = .{
+                .parameters = func_literal.parameters,
+                .body = func_literal.body,
+                .env = env,
+            },
+        };
+        return func_ptr;
     }
 
     fn evalPrefixExpression(self: *Evaluator, operator: *const Token, right: *Object) !*Object {
@@ -289,6 +324,64 @@ pub const Evaluator = struct {
             ) catch return EvaluatorError.FailedAlloc;
             return try self.newError(msg);
         }
+    }
+
+    fn applyFunction(self: *Evaluator, func: *Object, args: []*Object) EvaluatorError!*Object {
+        switch (func.*) {
+            .function => |*function| {
+                if (function.parameters) |parameters| {
+                    if (parameters.items.len != args.len) {
+                        const msg: []const u8 = std.fmt.allocPrint(
+                            self.allocator,
+                            "incorrect number of arguments: expected {d}, got {d}",
+                            .{ parameters.items.len, args.len },
+                        ) catch return EvaluatorError.FailedAlloc;
+                        return try self.newError(msg);
+                    }
+                } else {
+                    if (args.len > 0) {
+                        const msg: []const u8 = std.fmt.allocPrint(
+                            self.allocator,
+                            "incorrect number of arguments: expected 0, got {d}",
+                            .{args.len},
+                        ) catch return EvaluatorError.FailedAlloc;
+                        return try self.newError(msg);
+                    }
+                }
+
+                const extended_env = try self.extendFunctionEnvironment(function, args);
+                var evaluated: *Object = &NULL_OBJECT;
+                for (function.body.statements.items) |*stmt| {
+                    evaluated = try self.evalStatement(stmt, extended_env);
+                }
+
+                return switch (evaluated.*) {
+                    .return_ => |return_value| return_value.value,
+                    else => evaluated,
+                };
+            },
+            else => {
+                const msg: []const u8 = std.fmt.allocPrint(
+                    self.allocator,
+                    "not a function: {s}",
+                    .{func.typeName()},
+                ) catch return EvaluatorError.FailedAlloc;
+                return try self.newError(msg);
+            },
+        }
+    }
+
+    fn extendFunctionEnvironment(self: *Evaluator, func: *Function, args: []*Object) !*Environment {
+        const env_ptr: *Environment = self.allocator.create(Environment) catch return EvaluatorError.FailedAlloc;
+        env_ptr.* = Environment.initEnclosed(self.allocator, func.env);
+
+        // Bind arguments of the function call to the function's parameter names.
+        if (func.parameters) |parameters| {
+            for (parameters.items, args) |param, value| {
+                env_ptr.put(param.value, value) catch return EvaluatorError.FailedAlloc;
+            }
+        }
+        return env_ptr;
     }
 
     fn nativeBoolToBooleanObject(native: bool) *Object {
