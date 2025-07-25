@@ -84,7 +84,47 @@ test "Lexer - next token" {
         \\ != == === >=
         \\return * =!=
     ;
-    const expected_tokens = [_]Token{ .Assign, .Plus, .Minus, .Slash, .Comma, .Semicolon, .LeftBrace, .LessThan, .RightBracket, .LeftBracket, .GreaterThan, .RightParen, .LeftParen, .Bang, .Minus, .{ .Integer = 512 }, .Illegal, .{ .Integer = 79 }, .Let, .If, .Else, .Function, .True, .False, .{ .Ident = "_foo_" }, .Bang, .Bang, .{ .Ident = "bar_baz__" }, .{ .String = "string!%" }, .NotEqual, .Equal, .Equal, .Assign, .GreaterThan, .Assign, .Return, .Asterisk, .Assign, .NotEqual };
+    const expected_tokens = [_]Token{
+        .Assign,
+        .Plus,
+        .Minus,
+        .Slash,
+        .Comma,
+        .Semicolon,
+        .LeftBrace,
+        .LessThan,
+        .RightBracket,
+        .LeftBracket,
+        .GreaterThan,
+        .RightParen,
+        .LeftParen,
+        .Bang,
+        .Minus,
+        .{ .Integer = 512 },
+        .Illegal,
+        .{ .Integer = 79 },
+        .Let,
+        .If,
+        .Else,
+        .Function,
+        .True,
+        .False,
+        .{ .Ident = "_foo_" },
+        .Bang,
+        .Bang,
+        .{ .Ident = "bar_baz__" },
+        .{ .String = "string!%" },
+        .NotEqual,
+        .Equal,
+        .Equal,
+        .Assign,
+        .GreaterThan,
+        .Assign,
+        .Return,
+        .Asterisk,
+        .Assign,
+        .NotEqual,
+    };
     var lexer = Lexer.init(str);
     var idx: usize = 0;
     var next_tok: Token = lexer.nextToken();
@@ -831,7 +871,6 @@ test "Evaluator - let statements" {
         var env: Environment = Environment.init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
-        // const result = try obj.toString(allocator);
         try std.testing.expect(expected == obj.integer);
     }
 }
@@ -844,8 +883,8 @@ test "Evaluator - function literals" {
     const src: []const u8 =
         \\let add = fn(a,b) { a + b };
         \\let sub = fn(a,b) { a - b };
-        \\let applyFunc = fn(a, b, func){ { func(a,b) };
-        \\applyFunc(2, 2, add);
+        \\let applyFunc = fn(a, b, func) { func(a,b) };
+        \\applyFunc(2, 2, add)
     ;
     const expected: i32 = 4;
 

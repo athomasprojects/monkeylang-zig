@@ -148,10 +148,14 @@ pub const Parser = struct {
         self.advance();
         var statements = ArrayList(ast.Statement).init(self.allocator);
 
-        while (self.current_token != TokenTag.RightBrace and self.current_token != TokenTag.Eof) {
-            const s = try self.parseStatement();
-            statements.append(s) catch return ParserError.FailedAlloc;
-            self.advance();
+        while (true) : (self.advance()) {
+            switch (self.current_token) {
+                .RightBrace => break,
+                else => {
+                    const s = try self.parseStatement();
+                    statements.append(s) catch return ParserError.FailedAlloc;
+                },
+            }
         }
         self.chompSemicolon();
         return ast.BlockStatement{ .statements = statements };
@@ -259,8 +263,9 @@ pub const Parser = struct {
             .RightParen => {}, // No parameters to parse.
             else => {
                 var list = ArrayList(ast.Identifier).init(self.allocator);
+
+                // Parse function params.
                 while (self.current_token != .RightParen) : (self.advance()) {
-                    // Parse function params.
                     const ident = try self.parseIdentifier();
                     list.append(ident) catch return ParserError.FailedAlloc;
                     self.chompToken(.Comma);
@@ -274,6 +279,7 @@ pub const Parser = struct {
         const body = try self.parseBlockStatement();
         const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
         body_ptr.* = body;
+
         return .{ .parameters = parameters, .body = body_ptr };
     }
 

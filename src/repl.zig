@@ -1,13 +1,14 @@
 // Monkeylang REPL
 
 const std = @import("std");
+const ast = @import("ast.zig");
+const Environment = @import("environment.zig").Environment;
+const Evaluator = @import("evaluator.zig").Evaluator;
 const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
-const printParserError = @import("parser.zig").printParserError;
-const ast = @import("ast.zig");
-const Evaluator = @import("evaluator.zig").Evaluator;
 const Object = @import("object.zig").Object;
-const Environment = @import("environment.zig").Environment;
+const printParserError = @import("parser.zig").printParserError;
+
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
