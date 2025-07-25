@@ -343,7 +343,7 @@ pub const FunctionLiteral = struct {
 
 pub const Call = struct {
     callee: *Expression,
-    args: ?ArrayList(Expression),
+    args: ?ArrayList(Expression) = null,
 
     pub fn print(self: Call) void {
         self.callee.print();
