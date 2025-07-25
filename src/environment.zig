@@ -24,15 +24,9 @@ pub const Environment = struct {
     }
 
     pub fn get(self: *Environment, key: []const u8) ?*Object {
-        if (self.store.get(key)) |name| {
-            return name;
-        }
-
-        if (self.outer) |outer| {
-            return outer.get(key);
-        } else {
-            return null;
-        }
+        if (self.store.get(key)) |name| return name;
+        if (self.outer) |outer| return outer.get(key);
+        return null;
     }
 
     pub fn put(self: *Environment, key: []const u8, value: *Object) !void {
