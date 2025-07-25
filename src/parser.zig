@@ -40,19 +40,19 @@ const Precedence = enum {
     fn isLessThan(self: Precedence, other: Precedence) bool {
         return @intFromEnum(self) < @intFromEnum(other);
     }
-};
 
-fn tokenPrecedenceMap(token: Token) Precedence {
-    return switch (token) {
-        .Equal, .NotEqual => .equals,
-        .LessThan, .GreaterThan => .less_greater,
-        .Plus, .Minus => .sum,
-        .Slash, .Asterisk => .product,
-        .LeftParen => .call,
-        // .LeftBracket => .index,
-        else => .lowest,
-    };
-}
+    fn fromToken(token: Token) Precedence {
+        return switch (token) {
+            .Equal, .NotEqual => .equals,
+            .LessThan, .GreaterThan => .less_greater,
+            .Plus, .Minus => .sum,
+            .Slash, .Asterisk => .product,
+            .LeftParen => .call,
+            // .LeftBracket => .index,
+            else => .lowest,
+        };
+    }
+};
 
 pub const Parser = struct {
     lexer: *Lexer,
@@ -163,7 +163,7 @@ pub const Parser = struct {
 
     fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
         var left_expr = try self.parsePrefixToken(self.current_token);
-        while (self.peek_token != TokenTag.Semicolon and precedence.isLessThan(tokenPrecedenceMap(self.peek_token))) {
+        while (self.peek_token != TokenTag.Semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
             const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
             left_expr_ptr.* = left_expr;
             left_expr = try self.parseInfixToken(left_expr_ptr);
@@ -213,7 +213,7 @@ pub const Parser = struct {
         if (self.current_token.isOperator()) {
             const current_token = self.current_token;
             self.advance();
-            const right = try self.parseExpression(tokenPrecedenceMap(current_token));
+            const right = try self.parseExpression(Precedence.fromToken(current_token));
             const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
             right_ptr.* = right;
             return .{ .operator = current_token, .left = left, .right = right_ptr };
