@@ -135,12 +135,14 @@ test "Lexer - next token" {
     var lexer: Lexer = .init(str);
     var idx: usize = 0;
     var next_tok: Token = lexer.nextToken();
-    while (next_tok != TokenTag.Eof) : ({
-        next_tok = lexer.nextToken();
-        idx += 1;
-    }) {
-        const expected_tok = expected_tokens[idx];
-        try expect(expected_tok.isEqual(next_tok));
+    sw: switch (next_tok) {
+        .Eof => {},
+        else => {
+            try expect(expected_tokens[idx].isEqual(next_tok));
+            next_tok = lexer.nextToken();
+            idx += 1;
+            continue :sw next_tok;
+        },
     }
 }
 
@@ -165,7 +167,7 @@ test "Parser - identifier expressions" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const src: []const u8 = "foo";
+    const src = "foo";
     var lexer: Lexer = .init(src);
     var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
@@ -257,8 +259,18 @@ test "Parser - string expressions" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const expected = [_][]const u8{ "hello", "x%foo23", "!_bar", "]*(BaZ)}]" };
-    const src: []const u8 = "\"hello\"; \"x%foo23\"; \"!_bar\"; \"]*(BaZ)}]\"";
+    const expected = [_][]const u8{
+        "hello",
+        "x%foo23",
+        "!_bar",
+        "]*(BaZ)}]",
+    };
+    const src: []const u8 =
+        \\"hello";
+        \\"x%foo23";
+        \\"!_bar";
+        \\"]*(BaZ)}]"
+    ;
     var lexer: Lexer = .init(src);
     var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
