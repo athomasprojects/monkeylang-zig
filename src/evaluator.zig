@@ -193,6 +193,15 @@ pub const Evaluator = struct {
                 .string => switch (operator.*) {
                     .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
                     .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
+                    .Plus => {
+                        // Concatenate strings
+                        const str: []const u8 = std.fmt.allocPrint(
+                            self.allocator,
+                            "{s}{s}",
+                            .{ left.string, right.string },
+                        ) catch break :sw EvaluatorError.FailedAlloc;
+                        break :sw self.createStringObject(str);
+                    },
                     else => {
                         const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                         const msg: []const u8 = std.fmt.allocPrint(
