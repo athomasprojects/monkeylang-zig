@@ -6,7 +6,8 @@ pub fn main() !void {
 }
 
 // Tests
-const expect = std.testing.expect;
+const testing = std.testing;
+const expect = testing.expect;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const token = @import("token.zig");
 const Token = token.Token;
@@ -155,11 +156,11 @@ test "Parser - init" {
         .lexer = &lexer,
         .current_token = current_token,
         .peek_token = peek_token,
-        .allocator = std.testing.allocator,
+        .allocator = testing.allocator,
     };
 
-    const parser: Parser = .init(&lexer, std.testing.allocator);
-    try std.testing.expectEqualDeep(expected, parser);
+    const parser: Parser = .init(&lexer, testing.allocator);
+    try testing.expectEqualDeep(expected, parser);
 }
 
 test "Parser - identifier expressions" {
@@ -176,7 +177,7 @@ test "Parser - identifier expressions" {
         else => unreachable,
     };
     try expect(program.statements.items.len == 1);
-    try std.testing.expectEqualDeep(
+    try testing.expectEqualDeep(
         expr,
         ast.Expression{ .identifier = .{ .value = src } },
     );
@@ -199,7 +200,7 @@ test "Parser - integer expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try std.testing.expectEqualDeep(
+        try testing.expectEqualDeep(
             expr,
             ast.Expression{ .integer = .{ .value = int } },
         );
@@ -223,8 +224,8 @@ test "Parser - negative integer expressions" {
             else => unreachable,
         };
         try expect(expr.prefix.operator == TokenTag.Minus);
-        try std.testing.expectEqualDeep(
-            expr.prefix.right.*.integer,
+        try testing.expectEqualDeep(
+            expr.prefix.right.integer,
             ast.Integer{ .value = int },
         );
     }
@@ -247,7 +248,7 @@ test "Parser - booleans expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try std.testing.expectEqualDeep(
+        try testing.expectEqualDeep(
             expr,
             ast.Expression{ .boolean = .{ .value = b } },
         );
@@ -281,7 +282,7 @@ test "Parser - string expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try std.testing.expectEqualDeep(
+        try testing.expectEqualDeep(
             expr,
             ast.Expression{ .string = .{ .value = str } },
         );
@@ -312,7 +313,7 @@ test "Parser - let statement" {
             .expression_statement => |expr| try expr.toString(allocator),
             else => unreachable,
         };
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -340,7 +341,7 @@ test "Parser - return statement" {
             .expression_statement => |expr| try expr.toString(allocator),
             else => unreachable,
         };
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -371,7 +372,7 @@ test "Parser - expression statement" {
             .expression_statement => |expr| try expr.toString(allocator),
             else => unreachable,
         };
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -404,7 +405,7 @@ test "Parser - block statement" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -439,7 +440,7 @@ test "Parser - if expression" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -480,7 +481,7 @@ test "Parser - function literal" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -499,7 +500,7 @@ test "Parser - function call expression, no arguments" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -520,7 +521,7 @@ test "Parser - function call expression, expression arguments" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -547,7 +548,7 @@ test "Parser - function call, function literal callee" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        try std.testing.expectEqualStrings(expected, s);
+        try testing.expectEqualStrings(expected, s);
     }
 }
 
@@ -568,7 +569,7 @@ test "Evaluator - null" {
     const obj: *Object = try evaluator.evalProgram(&program, &env);
 
     const result = try obj.toString(allocator);
-    try std.testing.expectEqualStrings(expected, result);
+    try testing.expectEqualStrings(expected, result);
 }
 
 test "Evaluator - boolean literal" {
@@ -588,7 +589,7 @@ test "Evaluator - boolean literal" {
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
-        try std.testing.expectEqualStrings(expected, result);
+        try testing.expectEqualStrings(expected, result);
     }
 }
 
@@ -609,7 +610,7 @@ test "Evaluator - integer literal" {
         var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
-        try std.testing.expect(expected[i] == obj.integer);
+        try testing.expect(expected[i] == obj.integer);
     }
 }
 
@@ -648,7 +649,7 @@ test "Evaluator - prefix operators" {
         var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
-        try std.testing.expect(expected == obj.boolean);
+        try testing.expect(expected == obj.boolean);
     }
 }
 
@@ -689,7 +690,7 @@ test "Evaluator - integer expressions" {
         var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
-        try std.testing.expect(expected == obj.integer);
+        try testing.expect(expected == obj.integer);
     }
 }
 
@@ -750,7 +751,7 @@ test "Evaluator - boolean expressions" {
         var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
-        try std.testing.expect(expected == obj.boolean);
+        try testing.expect(expected == obj.boolean);
     }
 }
 
@@ -789,7 +790,7 @@ test "Evaluator - conditional expressions" {
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
-        try std.testing.expectEqualStrings(expected, result);
+        try testing.expectEqualStrings(expected, result);
     }
 }
 
@@ -818,7 +819,7 @@ test "Evaluator - nested conditional expressions" {
     var env: Environment = .init(allocator);
     const obj: *Object = try evaluator.evalProgram(&program, &env);
 
-    try std.testing.expect(@as(i32, 10) == obj.integer);
+    try testing.expect(10 == obj.integer);
 }
 
 test "Evaluator - error handling" {
@@ -863,7 +864,7 @@ test "Evaluator - error handling" {
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
-        try std.testing.expectEqualStrings(expected, result);
+        try testing.expectEqualStrings(expected, result);
     }
 }
 
@@ -896,7 +897,7 @@ test "Evaluator - let statements" {
         var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
-        try std.testing.expect(expected == obj.integer);
+        try testing.expect(expected == obj.integer);
     }
 }
 
@@ -911,8 +912,6 @@ test "Evaluator - function literals" {
         \\let applyFunc = fn(a, b, func) { func(a,b) };
         \\applyFunc(2, 2, add)
     ;
-    const expected: i32 = 4;
-
     var lexer: Lexer = .init(src);
     var parser: Parser = .init(&lexer, allocator);
     var program = try parser.parse();
@@ -920,5 +919,5 @@ test "Evaluator - function literals" {
     var evaluator: Evaluator = .init(allocator);
     var env: Environment = .init(allocator);
     const obj: *Object = try evaluator.evalProgram(&program, &env);
-    try std.testing.expect(expected == obj.integer);
+    try testing.expect(4 == obj.integer);
 }
