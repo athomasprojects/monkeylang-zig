@@ -7,8 +7,8 @@ const ToStringError = ast.ToStringError;
 
 pub const Object = union(enum) {
     null_,
-    integer: i32,
     boolean: bool,
+    integer: i32,
     string: []const u8,
     return_: ReturnValue,
     function: Function,
