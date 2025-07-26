@@ -150,7 +150,7 @@ pub const Parser = struct {
     fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
         self.advance();
         var statements = ArrayList(ast.Statement).init(self.allocator);
-        return sw: switch(self.current_token) {
+        return sw: switch (self.current_token) {
             .RightBrace => {
                 self.chompSemicolon();
                 break :sw .{ .statements = statements };
@@ -206,7 +206,10 @@ pub const Parser = struct {
             const right_expr = try self.parseExpression(.prefix);
             const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
             right_ptr.* = right_expr;
-            return .{ .operator = current_token, .right = right_ptr };
+            return .{
+                .operator = current_token,
+                .right = right_ptr,
+            };
         } else {
             return ParserError.ExpectedOperator;
         }
@@ -219,7 +222,11 @@ pub const Parser = struct {
             const right = try self.parseExpression(Precedence.fromToken(current_token));
             const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
             right_ptr.* = right;
-            return .{ .operator = current_token, .left = left, .right = right_ptr, };
+            return .{
+                .operator = current_token,
+                .left = left,
+                .right = right_ptr,
+            };
         } else {
             return ParserError.ExpectedOperator;
         }
@@ -243,18 +250,24 @@ pub const Parser = struct {
         const then_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
         then_ptr.* = then_branch;
 
-        if (self.peek_token == TokenTag.Else) {
-            self.advance();
-            try self.expectPeek(.LeftBrace);
-            const else_branch = try self.parseBlockStatement();
-            const else_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
-            else_ptr.* = else_branch;
-            return .{ .condition = condition_ptr, .then_branch = then_ptr, .else_branch = else_ptr, };
-        } else {
-            return .{ .condition = condition_ptr, .then_branch = then_ptr, };
-        }
-
-        self.chompSemicolon();
+        return sw: switch (self.peek_token) {
+            .Else => {
+                self.advance();
+                try self.expectPeek(.LeftBrace);
+                const else_branch = try self.parseBlockStatement();
+                const else_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
+                else_ptr.* = else_branch;
+                break :sw .{
+                    .condition = condition_ptr,
+                    .then_branch = then_ptr,
+                    .else_branch = else_ptr,
+                };
+            },
+            else => .{
+                .condition = condition_ptr,
+                .then_branch = then_ptr,
+            },
+        };
     }
 
     fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
@@ -265,7 +278,7 @@ pub const Parser = struct {
                 .RightParen => break :blk null, // No parameters to parse.
                 else => {
                     var list = ArrayList(ast.Identifier).init(self.allocator);
-                    sw: switch(self.current_token) {
+                    sw: switch (self.current_token) {
                         .RightParen => break :blk list,
                         else => {
                             const ident = try self.parseIdentifier();
@@ -296,17 +309,15 @@ pub const Parser = struct {
         // Parse function arguments.
         var args = ArrayList(ast.Expression).init(self.allocator);
         return sw: switch (self.current_token) {
-                .RightParen => {
-                    break :sw .{ .args = args, .callee = callee };
-                },
-                else => {
-                    const expr = try self.parseExpression(.lowest);
-                    args.append(expr) catch return ParserError.InvalidExpressionList;
-                    self.chompToken(.Comma);
-                    self.advance();
-                    continue :sw self.current_token;
-                },
-            };
+            .RightParen => .{ .args = args, .callee = callee },
+            else => {
+                const expr = try self.parseExpression(.lowest);
+                args.append(expr) catch return ParserError.InvalidExpressionList;
+                self.chompToken(.Comma);
+                self.advance();
+                continue :sw self.current_token;
+            },
+        };
     }
 
     // Expressions

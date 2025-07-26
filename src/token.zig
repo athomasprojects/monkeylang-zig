@@ -161,7 +161,17 @@ pub const Token = union(TokenTag) {
 
     pub fn isOperator(token: Token) bool {
         return switch (token) {
-            .Assign, .Bang, .Plus, .Minus, .Asterisk, .Slash, .Equal, .NotEqual, .LessThan, .GreaterThan => true,
+            .Assign,
+            .Bang,
+            .Plus,
+            .Minus,
+            .Asterisk,
+            .Slash,
+            .Equal,
+            .NotEqual,
+            .LessThan,
+            .GreaterThan,
+            => true,
             else => false,
         };
     }
