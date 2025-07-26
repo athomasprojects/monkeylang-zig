@@ -50,11 +50,19 @@ test "Lexer - init lexer" {
         \\"string"
     ;
     const lexers = [_]Lexer{ .init(""), .init(input) };
-    const vals = [_]Lexer{ .{
-        .input = "",
-        .pos = 0,
-        .ch = null,
-    }, .{ .input = input, .pos = 0, .ch = input[0], .length = input.len } };
+    const vals = [_]Lexer{
+        .{
+            .input = "",
+            .pos = 0,
+            .ch = null,
+        },
+        .{
+            .input = input,
+            .pos = 0,
+            .ch = input[0],
+            .length = input.len,
+        },
+    };
     for (lexers, vals) |lexer, val| {
         try expect(std.meta.eql(lexer, val));
     }
@@ -166,7 +174,10 @@ test "Parser - identifier expressions" {
         else => unreachable,
     };
     try expect(program.statements.items.len == 1);
-    try std.testing.expectEqualDeep(expr, ast.Expression{ .identifier = ast.Identifier{ .value = src } });
+    try std.testing.expectEqualDeep(
+        expr,
+        ast.Expression{ .identifier = .{ .value = src } },
+    );
 }
 
 test "Parser - integer expressions" {
@@ -186,7 +197,10 @@ test "Parser - integer expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try std.testing.expectEqualDeep(expr, ast.Expression{ .integer = ast.Integer{ .value = int } });
+        try std.testing.expectEqualDeep(
+            expr,
+            ast.Expression{ .integer = .{ .value = int } },
+        );
     }
 }
 
@@ -207,7 +221,10 @@ test "Parser - negative integer expressions" {
             else => unreachable,
         };
         try expect(expr.prefix.operator == TokenTag.Minus);
-        try std.testing.expectEqualDeep(expr.prefix.right.*.integer, ast.Integer{ .value = int });
+        try std.testing.expectEqualDeep(
+            expr.prefix.right.*.integer,
+            ast.Integer{ .value = int },
+        );
     }
 }
 
@@ -228,7 +245,10 @@ test "Parser - booleans expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try std.testing.expectEqualDeep(expr, ast.Expression{ .boolean = ast.Boolean{ .value = b } });
+        try std.testing.expectEqualDeep(
+            expr,
+            ast.Expression{ .boolean = .{ .value = b } },
+        );
     }
 }
 
@@ -249,7 +269,10 @@ test "Parser - string expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try std.testing.expectEqualDeep(expr, ast.Expression{ .string = ast.String{ .value = str } });
+        try std.testing.expectEqualDeep(
+            expr,
+            ast.Expression{ .string = .{ .value = str } },
+        );
     }
 }
 
@@ -277,7 +300,6 @@ test "Parser - let statement" {
             .expression_statement => |expr| try expr.toString(allocator),
             else => unreachable,
         };
-        // std.debug.print("{s}\n", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -306,7 +328,6 @@ test "Parser - return statement" {
             .expression_statement => |expr| try expr.toString(allocator),
             else => unreachable,
         };
-        // std.debug.print("{s}\n", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -338,7 +359,6 @@ test "Parser - expression statement" {
             .expression_statement => |expr| try expr.toString(allocator),
             else => unreachable,
         };
-        // std.debug.print("{s}\n", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -372,7 +392,6 @@ test "Parser - block statement" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        // std.debug.print("{s}", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -408,7 +427,6 @@ test "Parser - if expression" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        // std.debug.print("{s}", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -450,7 +468,6 @@ test "Parser - function literal" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        // std.debug.print("{s}", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -470,7 +487,6 @@ test "Parser - function call expression, no arguments" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        // std.debug.print("{s}", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -492,7 +508,6 @@ test "Parser - function call expression, expression arguments" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        // std.debug.print("{s}", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -520,7 +535,6 @@ test "Parser - function call, function literal callee" {
     try expect(program.statements.items.len == 1);
     for (program.statements.items) |stmt| {
         const s = try stmt.toString(allocator);
-        // std.debug.print("{s}", .{s});
         try std.testing.expectEqualStrings(expected, s);
     }
 }
@@ -894,7 +908,5 @@ test "Evaluator - function literals" {
     var evaluator: Evaluator = .init(allocator);
     var env: Environment = .init(allocator);
     const obj: *Object = try evaluator.evalProgram(&program, &env);
-
-    // const result = try obj.toString(allocator);
     try std.testing.expect(expected == obj.integer);
 }
