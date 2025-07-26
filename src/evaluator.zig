@@ -40,69 +40,66 @@ pub const Evaluator = struct {
                 .error_ => return result,
                 else => {},
             }
-        }
-        return result;
+        } else return result;
     }
 
     fn evalStatement(self: *Evaluator, statement: *const ast.Statement, env: *Environment) !*Object {
-        return switch (statement.*) {
+        return sw: switch (statement.*) {
             .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression, env),
             .let_statement => |let_statement| {
                 const value = try self.evalExpression(let_statement.value, env);
                 switch (value.*) {
-                    .error_ => return value,
-                    else => {},
+                    .error_ => break :sw value,
+                    else => {
+                        env.put(let_statement.name.value, value) catch break :sw EvaluatorError.FailedAlloc;
+                        break :sw &NULL_OBJECT;
+                    },
                 }
-                env.put(let_statement.name.value, value) catch return EvaluatorError.FailedAlloc;
-                return &NULL_OBJECT;
             },
             .block_statement => |*block_statement| {
                 var result: *Object = &NULL_OBJECT;
                 for (block_statement.statements.items) |*stmt| {
                     result = try self.evalStatement(stmt, env);
                     switch (result.*) {
-                        .return_, .error_ => return result,
+                        .return_, .error_ => break :sw result,
                         else => {},
                     }
                 }
-                return result;
+                break :sw result;
             },
             .return_statement => |return_statement| {
                 const value: *Object = try self.evalExpression(return_statement.value, env);
-                const object_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
-                object_ptr.* = Object{ .return_ = ReturnValue{ .value = value } };
-                return object_ptr;
+                const object_ptr: *Object = self.allocator.create(Object) catch break :sw EvaluatorError.FailedAlloc;
+                object_ptr.* = .{ .return_ = .{ .value = value } };
+                break :sw object_ptr;
             },
         };
     }
 
     fn evalExpression(self: *Evaluator, expr: *ast.Expression, env: *Environment) !*Object {
-        return switch (expr.*) {
+        return sw: switch (expr.*) {
             .integer => |integer| try self.createIntegerObject(integer.value),
             .boolean => |boolean| Evaluator.createBooleanObject(boolean.value),
             .string => |string| try self.createStringObject(string.value),
             .prefix => |prefix_expr| {
                 const right = try self.evalExpression(prefix_expr.right, env);
                 switch (right.*) {
-                    .error_ => return right,
-                    else => {},
+                    .error_ => break :sw right,
+                    else => break :sw try self.evalPrefixExpression(&prefix_expr.operator, right),
                 }
-                return try self.evalPrefixExpression(&prefix_expr.operator, right);
             },
             .infix => |infix_expr| {
                 const left = try self.evalExpression(infix_expr.left, env);
                 switch (left.*) {
-                    .error_ => return left,
-                    else => {},
+                    .error_ => break :sw left,
+                    else => {
+                        const right = try self.evalExpression(infix_expr.right, env);
+                        switch (right.*) {
+                            .error_ => break :sw right,
+                            else => break :sw try self.evalInfixExpression(&infix_expr.operator, left, right),
+                        }
+                    },
                 }
-
-                const right = try self.evalExpression(infix_expr.right, env);
-                switch (right.*) {
-                    .error_ => return right,
-                    else => {},
-                }
-
-                return try self.evalInfixExpression(&infix_expr.operator, left, right);
             },
             .if_expression => |if_expr| try self.evalIfExpression(&if_expr, env),
             .identifier => |identifier| try self.evalIdentifier(&identifier, env),
@@ -110,50 +107,45 @@ pub const Evaluator = struct {
             .call => |call| {
                 const function = try self.evalExpression(call.callee, env);
                 switch (function.*) {
-                    .error_ => return function,
-                    else => {},
-                }
-
-                var evaled: *Object = &NULL_OBJECT;
-                var evaled_args = std.ArrayList(*Object).init(self.allocator);
-                if (call.args) |args| {
-                    for (args.items) |*arg| {
-                        evaled = try self.evalExpression(arg, env);
-                        switch (evaled.*) {
-                            .error_ => return evaled,
-                            else => {},
+                    .error_ => break :sw function,
+                    else => {
+                        var evaled: *Object = &NULL_OBJECT;
+                        var evaled_args = std.ArrayList(*Object).init(self.allocator);
+                        if (call.args) |args| {
+                            for (args.items) |*arg| {
+                                evaled = try self.evalExpression(arg, env);
+                                switch (evaled.*) {
+                                    .error_ => break :sw evaled,
+                                    else => evaled_args.append(evaled) catch break :sw EvaluatorError.FailedAlloc,
+                                }
+                            }
                         }
-                        evaled_args.append(evaled) catch return EvaluatorError.FailedAlloc;
-                    }
+                        break :sw try self.applyFunction(function, evaled_args.items);
+                    },
                 }
-                return try self.applyFunction(function, evaled_args.items);
             },
         };
     }
 
     fn createIntegerObject(self: *Evaluator, integer: i32) !*Object {
         const integer_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
-        integer_ptr.* = Object{ .integer = integer };
+        integer_ptr.* = .{ .integer = integer };
         return integer_ptr;
     }
 
     fn createBooleanObject(boolean: bool) *Object {
-        if (boolean) {
-            return &TRUE_OBJECT;
-        } else {
-            return &FALSE_OBJECT;
-        }
+        return if (boolean) &TRUE_OBJECT else &FALSE_OBJECT;
     }
 
     fn createStringObject(self: *Evaluator, string: []const u8) !*Object {
         const string_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
-        string_ptr.* = Object{ .string = string };
+        string_ptr.* = .{ .string = string };
         return string_ptr;
     }
 
     fn createFunctionLiteralObject(self: *Evaluator, func_literal: *const ast.FunctionLiteral, env: *Environment) !*Object {
         const func_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
-        func_ptr.* = Object{
+        func_ptr.* = .{
             .function = .{
                 .parameters = func_literal.parameters,
                 .body = func_literal.body,
@@ -164,33 +156,37 @@ pub const Evaluator = struct {
     }
 
     fn evalPrefixExpression(self: *Evaluator, operator: *const Token, right: *Object) !*Object {
-        return switch (operator.*) {
+        return sw: switch (operator.*) {
             .Bang => try evalBangOperatorExpression(right),
             .Minus => try self.evalMinusOperatorExpression(right),
             else => {
-                const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.FailedAlloc;
+                const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                 const msg: []const u8 = std.fmt.allocPrint(
                     self.allocator,
                     "unknown operator: {s}{s}",
                     .{ operator_string, right.typeName() },
-                ) catch return EvaluatorError.FailedAlloc;
-                return try self.newError(msg);
+                ) catch break :sw EvaluatorError.FailedAlloc;
+                break :sw try self.newError(msg);
             },
         };
     }
 
     fn evalInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
-        return switch (left.*) {
+        return sw: switch (left.*) {
             .integer => switch (right.*) {
                 .integer => try self.evalIntegerInfixExpression(operator, left, right),
                 else => {
-                    const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.FailedAlloc;
+                    const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                     const msg: []const u8 = std.fmt.allocPrint(
                         self.allocator,
                         "type mismatch: {s} {s} {s}",
-                        .{ left.typeName(), operator_string, right.typeName() },
-                    ) catch return EvaluatorError.FailedAlloc;
-                    return try self.newError(msg);
+                        .{
+                            left.typeName(),
+                            operator_string,
+                            right.typeName(),
+                        },
+                    ) catch break :sw EvaluatorError.FailedAlloc;
+                    break :sw try self.newError(msg);
                 },
             },
             .string => switch (right.*) {
@@ -198,80 +194,94 @@ pub const Evaluator = struct {
                     .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
                     .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
                     else => {
-                        const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.FailedAlloc;
+                        const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                         const msg: []const u8 = std.fmt.allocPrint(
                             self.allocator,
                             "unknown operator: {s} {s} {s}",
-                            .{ left.typeName(), operator_string, right.typeName() },
-                        ) catch return EvaluatorError.FailedAlloc;
-                        return try self.newError(msg);
+                            .{
+                                left.typeName(),
+                                operator_string,
+                                right.typeName(),
+                            },
+                        ) catch break :sw EvaluatorError.FailedAlloc;
+                        break :sw try self.newError(msg);
                     },
                 },
                 else => {
-                    const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.FailedAlloc;
+                    const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                     const msg: []const u8 = std.fmt.allocPrint(
                         self.allocator,
                         "type mismatch: {s} {s} {s}",
-                        .{ left.typeName(), operator_string, right.typeName() },
-                    ) catch return EvaluatorError.FailedAlloc;
-                    return try self.newError(msg);
+                        .{
+                            left.typeName(),
+                            operator_string,
+                            right.typeName(),
+                        },
+                    ) catch break :sw EvaluatorError.FailedAlloc;
+                    break :sw try self.newError(msg);
                 },
             },
             else => switch (operator.*) {
                 .Equal => nativeBoolToBooleanObject(std.meta.eql(left.*, right.*)),
                 .NotEqual => nativeBoolToBooleanObject(!std.meta.eql(left.*, right.*)),
                 else => {
-                    const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.FailedAlloc;
+                    const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                     const msg: []const u8 = std.fmt.allocPrint(
                         self.allocator,
                         "unknown operator: {s} {s} {s}",
-                        .{ left.typeName(), operator_string, right.typeName() },
-                    ) catch return EvaluatorError.FailedAlloc;
-                    return try self.newError(msg);
+                        .{
+                            left.typeName(),
+                            operator_string,
+                            right.typeName(),
+                        },
+                    ) catch break :sw EvaluatorError.FailedAlloc;
+                    break :sw try self.newError(msg);
                 },
             },
         };
     }
 
     fn evalIntegerInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
-        const left_val = left.integer;
-        const right_val = right.integer;
-        return switch (operator.*) {
-            .Plus => try self.createIntegerObject(left_val + right_val),
-            .Minus => try self.createIntegerObject(left_val - right_val),
-            .Asterisk => try self.createIntegerObject(left_val * right_val),
+        return sw: switch (operator.*) {
+            .Plus => try self.createIntegerObject(left.integer + right.integer),
+            .Minus => try self.createIntegerObject(left.integer - right.integer),
+            .Asterisk => try self.createIntegerObject(left.integer * right.integer),
             .Slash => {
-                const division = std.math.divExact(i32, left_val, right_val) catch return EvaluatorError.FailedDivision;
-                return try self.createIntegerObject(division);
+                const division = std.math.divExact(i32, left.integer, right.integer) catch break :sw EvaluatorError.FailedDivision;
+                break :sw try self.createIntegerObject(division);
             },
-            .GreaterThan => nativeBoolToBooleanObject(left_val > right_val),
-            .LessThan => nativeBoolToBooleanObject(left_val < right_val),
-            .Equal => nativeBoolToBooleanObject(left_val == right_val),
-            .NotEqual => nativeBoolToBooleanObject(left_val != right_val),
+            .GreaterThan => nativeBoolToBooleanObject(left.integer > right.integer),
+            .LessThan => nativeBoolToBooleanObject(left.integer < right.integer),
+            .Equal => nativeBoolToBooleanObject(left.integer == right.integer),
+            .NotEqual => nativeBoolToBooleanObject(left.integer != right.integer),
             else => {
-                const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.FailedAlloc;
+                const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                 const msg: []const u8 = std.fmt.allocPrint(
                     self.allocator,
                     "unknown operator: {s} {s} {s}",
-                    .{ left.typeName(), operator_string, right.typeName() },
-                ) catch return EvaluatorError.FailedAlloc;
-                return try self.newError(msg);
+                    .{
+                        left.typeName(),
+                        operator_string,
+                        right.typeName(),
+                    },
+                ) catch break :sw EvaluatorError.FailedAlloc;
+                break :sw try self.newError(msg);
             },
         };
     }
 
     fn evalStringInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
-        return switch (operator.*) {
+        return sw: switch (operator.*) {
             .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
             .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
             else => {
-                const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.FailedAlloc;
+                const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.FailedAlloc;
                 const msg: []const u8 = std.fmt.allocPrint(
                     self.allocator,
                     "unknown operator: {s} {s} {s}",
                     .{ left.typeName(), operator_string, right.typeName() },
-                ) catch return EvaluatorError.FailedAlloc;
-                return try self.newError(msg);
+                ) catch break :sw EvaluatorError.FailedAlloc;
+                break :sw try self.newError(msg);
             },
         };
     }
@@ -284,33 +294,33 @@ pub const Evaluator = struct {
     }
 
     fn evalMinusOperatorExpression(self: *Evaluator, right: *Object) !*Object {
-        return switch (right.*) {
+        return sw: switch (right.*) {
             .integer => |value| try self.createIntegerObject(-value),
             else => {
                 const msg: []u8 = std.fmt.allocPrint(
                     self.allocator,
                     "unknown operator: -{s}",
                     .{right.typeName()},
-                ) catch return EvaluatorError.FailedAlloc;
-                return try self.newError(msg);
+                ) catch break :sw EvaluatorError.FailedAlloc;
+                break :sw try self.newError(msg);
             },
         };
     }
 
     fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression, env: *Environment) EvaluatorError!*Object {
         const condition: *Object = self.evalExpression(if_expr.condition, env) catch return EvaluatorError.InvalidCondition;
-        switch (condition.*) {
-            .error_ => return condition,
-            else => {},
-        }
-
-        if (isTruthy(condition)) {
-            return try self.evalStatement(&ast.Statement{ .block_statement = if_expr.then_branch.* }, env);
-        } else if (if_expr.else_branch) |else_branch| {
-            return try self.evalStatement(&ast.Statement{ .block_statement = else_branch.* }, env);
-        } else {
-            return &NULL_OBJECT;
-        }
+        return sw: switch (condition.*) {
+            .error_ => condition,
+            else => {
+                if (isTruthy(condition)) {
+                    break :sw try self.evalStatement(&.{ .block_statement = if_expr.then_branch.* }, env);
+                } else if (if_expr.else_branch) |else_branch| {
+                    break :sw try self.evalStatement(&.{ .block_statement = else_branch.* }, env);
+                } else {
+                    break :sw &NULL_OBJECT;
+                }
+            },
+        };
     }
 
     fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, env: *Environment) !*Object {
@@ -327,7 +337,7 @@ pub const Evaluator = struct {
     }
 
     fn applyFunction(self: *Evaluator, func: *Object, args: []*Object) EvaluatorError!*Object {
-        switch (func.*) {
+        return sw: switch (func.*) {
             .function => |*function| {
                 if (function.parameters) |parameters| {
                     if (parameters.items.len != args.len) {
@@ -335,8 +345,8 @@ pub const Evaluator = struct {
                             self.allocator,
                             "incorrect number of arguments: expected {d}, got {d}",
                             .{ parameters.items.len, args.len },
-                        ) catch return EvaluatorError.FailedAlloc;
-                        return try self.newError(msg);
+                        ) catch break :sw EvaluatorError.FailedAlloc;
+                        break :sw try self.newError(msg);
                     }
                 } else {
                     if (args.len > 0) {
@@ -354,8 +364,7 @@ pub const Evaluator = struct {
                 for (function.body.statements.items) |*stmt| {
                     evaluated = try self.evalStatement(stmt, extended_env);
                 }
-
-                return switch (evaluated.*) {
+                break :sw switch (evaluated.*) {
                     .return_ => |return_value| return_value.value,
                     else => evaluated,
                 };
@@ -365,15 +374,15 @@ pub const Evaluator = struct {
                     self.allocator,
                     "not a function: {s}",
                     .{func.typeName()},
-                ) catch return EvaluatorError.FailedAlloc;
-                return try self.newError(msg);
+                ) catch break :sw EvaluatorError.FailedAlloc;
+                break :sw try self.newError(msg);
             },
-        }
+        };
     }
 
     fn extendFunctionEnvironment(self: *Evaluator, func: *Function, args: []*Object) !*Environment {
         const env_ptr: *Environment = self.allocator.create(Environment) catch return EvaluatorError.FailedAlloc;
-        env_ptr.* = Environment.initEnclosed(self.allocator, func.env);
+        env_ptr.* = .initEnclosed(self.allocator, func.env);
 
         // Bind arguments of the function call to the function's parameter names.
         if (func.parameters) |parameters| {
