@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const ast = @import("ast.zig");
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Environment = @import("environment.zig").Environment;
 const Evaluator = @import("evaluator.zig").Evaluator;
 const Lexer = @import("lexer.zig").Lexer;
@@ -15,15 +16,15 @@ const stdin = std.io.getStdIn().reader();
 pub fn start() !void {
     try stdout.print("Hello! This is the monkey programming language!\nFeel free to type in commands.\n", .{});
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     var buf: [32768]u8 = undefined;
     var index: usize = 0;
 
-    var evaluator: Evaluator = Evaluator.init(allocator);
-    var env: Environment = Environment.init(allocator);
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
 
     while (true) {
         stdout.print(">> ", .{}) catch {};
@@ -35,8 +36,8 @@ pub fn start() !void {
                 } else if (std.mem.eql(u8, str, "quit")) {
                     break;
                 } else {
-                    var lexer: Lexer = Lexer.init(str);
-                    var parser: Parser = Parser.init(&lexer, allocator);
+                    var lexer: Lexer = .init(str);
+                    var parser: Parser = .init(&lexer, allocator);
 
                     // It's ok if we error for input that cannot be parsed for now, as it helps with debugging.
                     // Eventually we'll provide an error message and properly handle the error.

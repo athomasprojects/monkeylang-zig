@@ -7,6 +7,7 @@ pub fn main() !void {
 
 // Tests
 const expect = std.testing.expect;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const token = @import("token.zig");
 const Token = token.Token;
 const TokenTag = token.TokenTag;
@@ -48,9 +49,7 @@ test "Lexer - init lexer" {
         \\baz =!= 420
         \\"string"
     ;
-    const lexers = [_]Lexer{
-        Lexer.init(""), Lexer.init(input),
-    };
+    const lexers = [_]Lexer{ .init(""), .init(input) };
     const vals = [_]Lexer{ .{
         .input = "",
         .pos = 0,
@@ -125,7 +124,7 @@ test "Lexer - next token" {
         .Assign,
         .NotEqual,
     };
-    var lexer = Lexer.init(str);
+    var lexer: Lexer = .init(str);
     var idx: usize = 0;
     var next_tok: Token = lexer.nextToken();
     while (next_tok != TokenTag.Eof) : ({
@@ -139,7 +138,7 @@ test "Lexer - next token" {
 
 test "Parser - init" {
     const src = "let x = \"foo\"";
-    var lexer: Lexer = Lexer.init(src);
+    var lexer: Lexer = .init(src);
     const current_token: Token = .Let;
     const peek_token: Token = .{ .Ident = "x" };
     const expected: Parser = .{
@@ -149,18 +148,18 @@ test "Parser - init" {
         .allocator = std.testing.allocator,
     };
 
-    const parser = Parser.init(&lexer, std.testing.allocator);
+    const parser: Parser = .init(&lexer, std.testing.allocator);
     try std.testing.expectEqualDeep(expected, parser);
 }
 
 test "Parser - identifier expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const src: []const u8 = "foo";
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
     const expr = switch (program.statements.items[0]) {
         .expression_statement => |e| e.expression.*,
@@ -171,14 +170,14 @@ test "Parser - identifier expressions" {
 }
 
 test "Parser - integer expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const src: []const u8 = "123456789; 0; 01";
     const expected = [_]i32{ 123456789, 0, 1 };
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == expected.len);
@@ -192,14 +191,14 @@ test "Parser - integer expressions" {
 }
 
 test "Parser - negative integer expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const expected = [_]i32{ 123456789, 0, 1 };
     const src: []const u8 = "-123456789; -0; -1";
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
     try expect(program.statements.items.len == expected.len);
     for (program.statements.items, expected) |stmt, int| {
@@ -213,14 +212,14 @@ test "Parser - negative integer expressions" {
 }
 
 test "Parser - booleans expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const expected = [_]bool{ true, false };
     const src: []const u8 = "true; false";
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == expected.len);
@@ -234,14 +233,14 @@ test "Parser - booleans expressions" {
 }
 
 test "Parser - string expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const expected = [_][]const u8{ "hello", "x%foo23", "!_bar", "]*(BaZ)}]" };
     const src: []const u8 = "\"hello\"; \"x%foo23\"; \"!_bar\"; \"]*(BaZ)}]\"";
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == expected.len);
@@ -255,7 +254,7 @@ test "Parser - string expressions" {
 }
 
 test "Parser - let statement" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -266,8 +265,8 @@ test "Parser - let statement" {
         \\let x = ("foo" + ("bar" * ((-baz) / (5 * 3))));
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -284,7 +283,7 @@ test "Parser - let statement" {
 }
 
 test "Parser - return statement" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -295,8 +294,8 @@ test "Parser - return statement" {
         \\return ((123 * "foo") + ("bar" * ((-_baz) / (5 * 3))));
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -313,7 +312,7 @@ test "Parser - return statement" {
 }
 
 test "Parser - expression statement" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -327,8 +326,8 @@ test "Parser - expression statement" {
         \\((123 * "foo") + ("bar" * ((-_baz) / (5 * 3))))
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -345,7 +344,7 @@ test "Parser - expression statement" {
 }
 
 test "Parser - block statement" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -366,8 +365,8 @@ test "Parser - block statement" {
         \\}
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -379,7 +378,7 @@ test "Parser - block statement" {
 }
 
 test "Parser - if expression" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -402,8 +401,8 @@ test "Parser - if expression" {
         \\}
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -415,7 +414,7 @@ test "Parser - if expression" {
 }
 
 test "Parser - function literal" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -444,8 +443,8 @@ test "Parser - function literal" {
         \\};
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -457,15 +456,15 @@ test "Parser - function literal" {
 }
 
 test "Parser - function call expression, no arguments" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const src: []const u8 = "add()";
     const expected = "add()";
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -477,7 +476,7 @@ test "Parser - function call expression, no arguments" {
 }
 
 test "Parser - function call expression, expression arguments" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -486,8 +485,8 @@ test "Parser - function call expression, expression arguments" {
         \\((a + add((b * c))) + d)
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -499,7 +498,7 @@ test "Parser - function call expression, expression arguments" {
 }
 
 test "Parser - function call, function literal callee" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -514,8 +513,8 @@ test "Parser - function call, function literal callee" {
         \\}(foo, (((-b) / d) + 5));
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
 
     try expect(program.statements.items.len == 1);
@@ -527,19 +526,19 @@ test "Parser - function call, function literal callee" {
 }
 
 test "Evaluator - null" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const src: []const u8 = "null";
     const expected: []const u8 = "identifier not found: null";
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     var program = try parser.parse();
 
-    var evaluator: Evaluator = Evaluator.init(allocator);
-    var env: Environment = Environment.init(allocator);
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
     const obj: *Object = try evaluator.evalProgram(&program, &env);
 
     const result = try obj.toString(allocator);
@@ -547,19 +546,19 @@ test "Evaluator - null" {
 }
 
 test "Evaluator - boolean literal" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     const src = [_][]const u8{ "true", "false" };
 
     for (src) |expected| {
-        var lexer: Lexer = Lexer.init(expected);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(expected);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
@@ -568,7 +567,7 @@ test "Evaluator - boolean literal" {
 }
 
 test "Evaluator - integer literal" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -576,12 +575,12 @@ test "Evaluator - integer literal" {
     const expected = [_]i32{ 1, 0, 0, -5, -10, 69420 };
 
     for (src, 0..) |str, i| {
-        var lexer: Lexer = Lexer.init(str);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(str);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected[i] == obj.integer);
@@ -589,7 +588,7 @@ test "Evaluator - integer literal" {
 }
 
 test "Evaluator - prefix operators" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -615,12 +614,12 @@ test "Evaluator - prefix operators" {
     };
 
     for (src, bools) |str, expected| {
-        var lexer: Lexer = Lexer.init(str);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(str);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected == obj.boolean);
@@ -628,7 +627,7 @@ test "Evaluator - prefix operators" {
 }
 
 test "Evaluator - integer expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -656,12 +655,12 @@ test "Evaluator - integer expressions" {
     };
 
     for (src, values) |str, expected| {
-        var lexer: Lexer = Lexer.init(str);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(str);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected == obj.integer);
@@ -669,7 +668,7 @@ test "Evaluator - integer expressions" {
 }
 
 test "Evaluator - boolean expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -717,12 +716,12 @@ test "Evaluator - boolean expressions" {
     };
 
     for (src, values) |str, expected| {
-        var lexer: Lexer = Lexer.init(str);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(str);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected == obj.boolean);
@@ -730,7 +729,7 @@ test "Evaluator - boolean expressions" {
 }
 
 test "Evaluator - conditional expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -755,12 +754,12 @@ test "Evaluator - conditional expressions" {
     };
 
     for (src, values) |str, expected| {
-        var lexer: Lexer = Lexer.init(str);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(str);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
@@ -769,7 +768,7 @@ test "Evaluator - conditional expressions" {
 }
 
 test "Evaluator - nested conditional expressions" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -785,19 +784,19 @@ test "Evaluator - nested conditional expressions" {
         \\ }
     ;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     var program = try parser.parse();
 
-    var evaluator: Evaluator = Evaluator.init(allocator);
-    var env: Environment = Environment.init(allocator);
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
     const obj: *Object = try evaluator.evalProgram(&program, &env);
 
     try std.testing.expect(@as(i32, 10) == obj.integer);
 }
 
 test "Evaluator - error handling" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -829,12 +828,12 @@ test "Evaluator - error handling" {
     };
 
     for (src, error_messages) |str, expected| {
-        var lexer: Lexer = Lexer.init(str);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(str);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         const result = try obj.toString(allocator);
@@ -843,7 +842,7 @@ test "Evaluator - error handling" {
 }
 
 test "Evaluator - let statements" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -863,12 +862,12 @@ test "Evaluator - let statements" {
     };
 
     for (src, error_messages) |str, expected| {
-        var lexer: Lexer = Lexer.init(str);
-        var parser = Parser.init(&lexer, allocator);
+        var lexer: Lexer = .init(str);
+        var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();
 
-        var evaluator: Evaluator = Evaluator.init(allocator);
-        var env: Environment = Environment.init(allocator);
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
         const obj: *Object = try evaluator.evalProgram(&program, &env);
 
         try std.testing.expect(expected == obj.integer);
@@ -876,7 +875,7 @@ test "Evaluator - let statements" {
 }
 
 test "Evaluator - function literals" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
@@ -888,12 +887,12 @@ test "Evaluator - function literals" {
     ;
     const expected: i32 = 4;
 
-    var lexer: Lexer = Lexer.init(src);
-    var parser = Parser.init(&lexer, allocator);
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
     var program = try parser.parse();
 
-    var evaluator: Evaluator = Evaluator.init(allocator);
-    var env: Environment = Environment.init(allocator);
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
     const obj: *Object = try evaluator.evalProgram(&program, &env);
 
     // const result = try obj.toString(allocator);

@@ -57,8 +57,6 @@ pub const Object = union(enum) {
             .integer => "INTEGER",
             .boolean => "BOOLEAN",
             .string => "STRING",
-            // Note: In release mode the compiler uses optimizers that assume this prong will never be hit in order to perform optimizations. It will not panic if the prong is hit!
-            // Todo: Handle error message for _unreachable_  prong.
             .function => "FUNCTION",
             .return_ => unreachable,
             .error_ => "ERROR",

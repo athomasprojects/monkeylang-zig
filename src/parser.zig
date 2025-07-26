@@ -106,12 +106,11 @@ pub const Parser = struct {
     }
 
     fn parseStatement(self: *Parser) ParserError!ast.Statement {
-        const current_token = self.current_token;
-        return switch (current_token) {
-            .Let => ast.Statement{ .let_statement = try self.parseLetStatement() },
-            .Return => ast.Statement{ .return_statement = try self.parseReturnStatement() },
-            .LeftBrace => ast.Statement{ .block_statement = try self.parseBlockStatement() },
-            else => ast.Statement{ .expression_statement = try self.parseExpressionStatement() },
+        return switch (self.current_token) {
+            .Let => .{ .let_statement = try self.parseLetStatement() },
+            .Return => .{ .return_statement = try self.parseReturnStatement() },
+            .LeftBrace => .{ .block_statement = try self.parseBlockStatement() },
+            else => .{ .expression_statement = try self.parseExpressionStatement() },
         };
     }
 
@@ -296,7 +295,10 @@ pub const Parser = struct {
         const body = try self.parseBlockStatement();
         const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
         body_ptr.* = body;
-        return .{ .parameters = parameters, .body = body_ptr };
+        return .{
+            .parameters = parameters,
+            .body = body_ptr,
+        };
     }
 
     fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.Call {
