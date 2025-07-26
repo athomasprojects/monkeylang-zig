@@ -31,10 +31,10 @@ pub const Evaluator = struct {
         return .{ .allocator = allocator };
     }
 
-    pub fn evalProgram(self: *Evaluator, program: *ast.Program, env: *Environment) !*Object {
+    pub fn evalProgram(self: *Evaluator, program: *ast.Program, scope: *Environment) !*Object {
         var result: *Object = undefined;
         for (program.statements.items) |*statement| {
-            result = try self.evalStatement(statement, env);
+            result = try self.evalStatement(statement, scope);
             switch (result.*) {
                 .return_ => |return_value| return return_value.value,
                 .error_ => return result,
@@ -43,15 +43,16 @@ pub const Evaluator = struct {
         } else return result;
     }
 
-    fn evalStatement(self: *Evaluator, statement: *const ast.Statement, env: *Environment) !*Object {
+    fn evalStatement(self: *Evaluator, statement: *const ast.Statement, scope: *Environment) !*Object {
         return sw: switch (statement.*) {
-            .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression, env),
+            .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression, scope),
             .let_statement => |let_statement| {
-                const value = try self.evalExpression(let_statement.value, env);
+                const value = try self.evalExpression(let_statement.value, scope);
                 switch (value.*) {
                     .error_ => break :sw value,
                     else => {
-                        env.put(let_statement.name.value, value) catch break :sw EvaluatorError.FailedAlloc;
+                        // Bind evaluated expression to identifier in the current scope.
+                        scope.bind(let_statement.name.value, value) catch break :sw EvaluatorError.FailedAlloc;
                         break :sw &NULL_OBJECT;
                     },
                 }
@@ -59,7 +60,7 @@ pub const Evaluator = struct {
             .block_statement => |*block_statement| {
                 var result: *Object = &NULL_OBJECT;
                 for (block_statement.statements.items) |*stmt| {
-                    result = try self.evalStatement(stmt, env);
+                    result = try self.evalStatement(stmt, scope);
                     switch (result.*) {
                         .return_, .error_ => break :sw result,
                         else => {},
@@ -68,7 +69,7 @@ pub const Evaluator = struct {
                 break :sw result;
             },
             .return_statement => |return_statement| {
-                const value: *Object = try self.evalExpression(return_statement.value, env);
+                const value: *Object = try self.evalExpression(return_statement.value, scope);
                 const object_ptr: *Object = self.allocator.create(Object) catch break :sw EvaluatorError.FailedAlloc;
                 object_ptr.* = .{ .return_ = .{ .value = value } };
                 break :sw object_ptr;
@@ -76,24 +77,24 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalExpression(self: *Evaluator, expr: *ast.Expression, env: *Environment) !*Object {
+    fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) !*Object {
         return sw: switch (expr.*) {
             .integer => |integer| try self.createIntegerObject(integer.value),
             .boolean => |boolean| Evaluator.createBooleanObject(boolean.value),
             .string => |string| try self.createStringObject(string.value),
             .prefix => |prefix_expr| {
-                const right = try self.evalExpression(prefix_expr.right, env);
+                const right = try self.evalExpression(prefix_expr.right, scope);
                 switch (right.*) {
                     .error_ => break :sw right,
                     else => break :sw try self.evalPrefixExpression(&prefix_expr.operator, right),
                 }
             },
             .infix => |infix_expr| {
-                const left = try self.evalExpression(infix_expr.left, env);
+                const left = try self.evalExpression(infix_expr.left, scope);
                 switch (left.*) {
                     .error_ => break :sw left,
                     else => {
-                        const right = try self.evalExpression(infix_expr.right, env);
+                        const right = try self.evalExpression(infix_expr.right, scope);
                         switch (right.*) {
                             .error_ => break :sw right,
                             else => break :sw try self.evalInfixExpression(&infix_expr.operator, left, right),
@@ -101,11 +102,11 @@ pub const Evaluator = struct {
                     },
                 }
             },
-            .if_expression => |if_expr| try self.evalIfExpression(&if_expr, env),
-            .identifier => |identifier| try self.evalIdentifier(&identifier, env),
-            .function => |function| try self.createFunctionLiteralObject(&function, env),
+            .if_expression => |if_expr| try self.evalIfExpression(&if_expr, scope),
+            .identifier => |identifier| try self.evalIdentifier(&identifier, scope),
+            .function => |function| try self.createFunctionLiteralObject(&function, scope),
             .call => |call| {
-                const function = try self.evalExpression(call.callee, env);
+                const function = try self.evalExpression(call.callee, scope);
                 switch (function.*) {
                     .error_ => break :sw function,
                     else => {
@@ -113,7 +114,7 @@ pub const Evaluator = struct {
                         var evaled_args = std.ArrayList(*Object).init(self.allocator);
                         if (call.args) |args| {
                             for (args.items) |*arg| {
-                                evaled = try self.evalExpression(arg, env);
+                                evaled = try self.evalExpression(arg, scope);
                                 switch (evaled.*) {
                                     .error_ => break :sw evaled,
                                     else => evaled_args.append(evaled) catch break :sw EvaluatorError.FailedAlloc,
@@ -143,13 +144,13 @@ pub const Evaluator = struct {
         return string_ptr;
     }
 
-    fn createFunctionLiteralObject(self: *Evaluator, func_literal: *const ast.FunctionLiteral, env: *Environment) !*Object {
+    fn createFunctionLiteralObject(self: *Evaluator, func_literal: *const ast.FunctionLiteral, scope: *Environment) !*Object {
         const func_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.FailedAlloc;
         func_ptr.* = .{
             .function = .{
                 .parameters = func_literal.parameters,
                 .body = func_literal.body,
-                .env = env,
+                .env = scope,
             },
         };
         return func_ptr;
@@ -316,15 +317,15 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression, env: *Environment) EvaluatorError!*Object {
-        const condition: *Object = self.evalExpression(if_expr.condition, env) catch return EvaluatorError.InvalidCondition;
+    fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression, scope: *Environment) EvaluatorError!*Object {
+        const condition: *Object = self.evalExpression(if_expr.condition, scope) catch return EvaluatorError.InvalidCondition;
         return sw: switch (condition.*) {
             .error_ => condition,
             else => {
                 if (isTruthy(condition)) {
-                    break :sw try self.evalStatement(&.{ .block_statement = if_expr.then_branch.* }, env);
+                    break :sw try self.evalStatement(&.{ .block_statement = if_expr.then_branch.* }, scope);
                 } else if (if_expr.else_branch) |else_branch| {
-                    break :sw try self.evalStatement(&.{ .block_statement = else_branch.* }, env);
+                    break :sw try self.evalStatement(&.{ .block_statement = else_branch.* }, scope);
                 } else {
                     break :sw &NULL_OBJECT;
                 }
@@ -332,17 +333,17 @@ pub const Evaluator = struct {
         };
     }
 
-    fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, env: *Environment) !*Object {
-        if (env.get(identifier.value)) |value| {
+    fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, scope: *Environment) !*Object {
+        if (scope.get(identifier.value)) |value| {
             return value;
-        } else {
-            const msg: []const u8 = std.fmt.allocPrint(
-                self.allocator,
-                "identifier not found: {s}",
-                .{identifier.value},
-            ) catch return EvaluatorError.FailedAlloc;
-            return try self.newError(msg);
         }
+
+        const msg: []const u8 = std.fmt.allocPrint(
+            self.allocator,
+            "identifier not found: {s}",
+            .{identifier.value},
+        ) catch return EvaluatorError.FailedAlloc;
+        return try self.newError(msg);
     }
 
     fn applyFunction(self: *Evaluator, func: *Object, args: []*Object) EvaluatorError!*Object {
@@ -396,7 +397,7 @@ pub const Evaluator = struct {
         // Bind arguments of the function call to the function's parameter names.
         if (func.parameters) |parameters| {
             for (parameters.items, args) |param, value| {
-                env_ptr.put(param.value, value) catch return EvaluatorError.FailedAlloc;
+                env_ptr.bind(param.value, value) catch return EvaluatorError.FailedAlloc;
             }
         }
         return env_ptr;

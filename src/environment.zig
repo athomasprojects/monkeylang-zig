@@ -29,7 +29,7 @@ pub const Environment = struct {
         return null;
     }
 
-    pub fn put(self: *Environment, key: []const u8, value: *Object) !void {
+    pub fn bind(self: *Environment, key: []const u8, value: *Object) !void {
         try self.store.put(key, value);
     }
 };
