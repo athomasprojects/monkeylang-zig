@@ -7,20 +7,20 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 pub const ParserError = error{
-    FailedAlloc,
-    ExpectedOperator,
-    ExpectedPeek,
-    ExpectedIdentifier,
-    ExpectedInteger,
-    ExpectedStringLiteral,
     ExpectedBoolean,
     ExpectedExpression,
-    ExpectedStatement,
+    ExpectedIdentifier,
+    ExpectedInteger,
+    ExpectedOperator,
+    ExpectedPeek,
     ExpectedReturn,
-    InvalidProgram,
-    InvalidPrefix,
-    InvalidInfix,
+    ExpectedStatement,
+    ExpectedStringLiteral,
+    FailedAlloc,
     InvalidExpressionList,
+    InvalidInfix,
+    InvalidPrefix,
+    InvalidProgram,
 };
 
 pub fn printParserError(self: ParserError) void {
@@ -71,13 +71,13 @@ pub const Parser = struct {
         return parser;
     }
 
-    /// Parses the parser's input stream into a list of `ast.Statement` nodes.
+    /// Parses the input stream into a list of `ast.Statement` nodes.
     pub fn parse(self: *Parser) !ast.Program {
         var statements = ArrayList(ast.Statement).init(self.allocator);
         return sw: switch (self.current_token) {
             .Eof => .{ .statements = statements },
             else => {
-                // Todo: check if parseStatement returns an error and switch over the ParserError set to handle each respective case.
+                // TODO: check if `parseStatement` returns an error and switch over the `ParserError` set to handle each respective case.
                 // In --release=fast mode the program will just fail and Zig won't return the error stack trace.
                 const s = try self.parseStatement();
                 statements.append(s) catch return ParserError.InvalidProgram;
@@ -99,9 +99,10 @@ pub const Parser = struct {
         }
     }
 
-    fn chompToken(self: *Parser, token: TokenTag) void {
-        if (self.peek_token == token) {
-            self.advance();
+    fn chompComma(self: *Parser) void {
+        switch (self.peek_token) {
+            .Comma => self.advance(),
+            else => {},
         }
     }
 
@@ -282,7 +283,7 @@ pub const Parser = struct {
                         else => {
                             const ident = try self.parseIdentifier();
                             list.append(ident) catch return ParserError.FailedAlloc;
-                            self.chompToken(.Comma);
+                            self.chompComma();
                             self.advance();
                             continue :sw self.current_token;
                         },
@@ -315,7 +316,7 @@ pub const Parser = struct {
             else => {
                 const expr = try self.parseExpression(.lowest);
                 args.append(expr) catch return ParserError.InvalidExpressionList;
-                self.chompToken(.Comma);
+                self.chompComma();
                 self.advance();
                 continue :sw self.current_token;
             },
