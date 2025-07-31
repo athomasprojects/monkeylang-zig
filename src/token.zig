@@ -46,7 +46,7 @@ pub const Token = union(TokenTag) {
     // Identifiers
     Ident: []const u8,
     String: []const u8,
-    Integer: i32,
+    Integer: i64,
     // Invalid
     Illegal,
     // Operators

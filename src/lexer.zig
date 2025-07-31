@@ -172,7 +172,7 @@ pub const Lexer = struct {
         const literal = self.takeWhile(ascii.isDigit);
         self.pos += literal.len - 1;
         self.advance();
-        if (std.fmt.parseInt(i32, literal, 10)) |int| {
+        if (std.fmt.parseInt(i64, literal, 10)) |int| {
             return .{ .Integer = int };
         } else |_| {
             return .Illegal;

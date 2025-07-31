@@ -122,7 +122,7 @@ pub const Evaluator = struct {
         };
     }
 
-    fn createIntegerObject(self: *Evaluator, integer: i32) !*Object {
+    fn createIntegerObject(self: *Evaluator, integer: i64) !*Object {
         const integer_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.OutOfMemory;
         integer_ptr.* = .{ .integer = integer };
         return integer_ptr;
@@ -190,12 +190,12 @@ pub const Evaluator = struct {
                     .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
                     .Plus => {
                         // Concatenate strings
-                        const str: []const u8 = std.fmt.allocPrint(
+                        const concatenated_string: []const u8 = std.fmt.allocPrint(
                             self.allocator,
                             "{s}{s}",
                             .{ left.string, right.string },
                         ) catch break :sw EvaluatorError.OutOfMemory;
-                        break :sw self.createStringObject(str);
+                        break :sw try self.createStringObject(concatenated_string);
                     },
                     else => {
                         const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
@@ -251,7 +251,7 @@ pub const Evaluator = struct {
             .Minus => try self.createIntegerObject(left.integer - right.integer),
             .Asterisk => try self.createIntegerObject(left.integer * right.integer),
             .Slash => {
-                const division = std.math.divExact(i32, left.integer, right.integer) catch break :sw EvaluatorError.FailedDivision;
+                const division = std.math.divExact(i64, left.integer, right.integer) catch break :sw EvaluatorError.FailedDivision;
                 break :sw try self.createIntegerObject(division);
             },
             .GreaterThan => nativeBoolToBooleanObject(left.integer > right.integer),

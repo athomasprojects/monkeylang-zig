@@ -189,7 +189,7 @@ test "Parser - integer expressions" {
     const allocator = arena.allocator();
 
     const src: []const u8 = "123456789; 0; 01";
-    const expected = [_]i32{ 123456789, 0, 1 };
+    const expected = [_]i64{ 123456789, 0, 1 };
     var lexer: Lexer = .init(src);
     var parser: Parser = .init(&lexer, allocator);
     const program = try parser.parse();
@@ -212,7 +212,7 @@ test "Parser - negative integer expressions" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const expected = [_]i32{ 123456789, 0, 1 };
+    const expected = [_]i64{ 123456789, 0, 1 };
     const src: []const u8 = "-123456789; -0; -1";
     var lexer: Lexer = .init(src);
     var parser: Parser = .init(&lexer, allocator);
@@ -599,7 +599,7 @@ test "Evaluator - integer literal" {
     const allocator = arena.allocator();
 
     const src = [_][]const u8{ "1", "0", "-0", "-5", "-10", "69420" };
-    const expected = [_]i32{ 1, 0, 0, -5, -10, 69420 };
+    const expected = [_]i64{ 1, 0, 0, -5, -10, 69420 };
 
     for (src, 0..) |str, i| {
         var lexer: Lexer = .init(str);
@@ -669,7 +669,7 @@ test "Evaluator - integer expressions" {
         "3 * (3 * 3) + 10",
         "(5 + 10 * 2 + 15 / 3) * 2 + -10",
     };
-    const values = [_]i32{
+    const values = [_]i64{
         10,
         32,
         100,
@@ -880,7 +880,7 @@ test "Evaluator - let statements" {
         "let a = 5; let b = a; let c = a + b + 5; c;",
         "let a = 5; let b = a; let c = a + b + 5; let d = if (c > a) { 99 } else { 100 }; d;",
     };
-    const error_messages = [_]i32{
+    const error_messages = [_]i64{
         5,
         25,
         5,

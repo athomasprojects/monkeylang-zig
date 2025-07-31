@@ -195,7 +195,7 @@ pub const Identifier = struct {
 };
 
 pub const Integer = struct {
-    value: i32,
+    value: i64,
 
     pub fn print(self: Integer) void {
         std.debug.print("{d}", .{self.value});
