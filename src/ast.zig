@@ -4,7 +4,7 @@ const TokenTag = @import("token.zig").TokenTag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
-pub const ToStringError = std.mem.Allocator.Error || std.fmt.AllocPrintError;
+pub const ToStringError = Allocator.Error || std.fmt.AllocPrintError;
 
 pub const Program = struct {
     statements: ArrayList(Statement),

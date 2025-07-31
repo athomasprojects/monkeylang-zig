@@ -16,11 +16,11 @@ pub const ParserError = error{
     ExpectedReturn,
     ExpectedStatement,
     ExpectedStringLiteral,
-    FailedAlloc,
     InvalidExpressionList,
     InvalidInfix,
     InvalidPrefix,
     InvalidProgram,
+    OutOfMemory,
 };
 
 pub fn printParserError(self: ParserError) void {
@@ -124,7 +124,7 @@ pub const Parser = struct {
         self.advance();
         const expr = try self.parseExpression(.lowest);
         self.chompSemicolon();
-        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
         expr_ptr.* = expr;
         return .{ .name = name, .value = expr_ptr };
     }
@@ -134,7 +134,7 @@ pub const Parser = struct {
         self.advance();
         const ret = try self.parseExpression(.lowest);
         self.chompSemicolon();
-        const ret_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+        const ret_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
         ret_ptr.* = ret;
         return .{ .value = ret_ptr };
     }
@@ -142,7 +142,7 @@ pub const Parser = struct {
     fn parseExpressionStatement(self: *Parser) ParserError!ast.ExpressionStatement {
         const expr = try self.parseExpression(.lowest);
         self.chompSemicolon();
-        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+        const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
         expr_ptr.* = expr;
         return .{ .expression = expr_ptr };
     }
@@ -157,7 +157,7 @@ pub const Parser = struct {
             },
             else => {
                 const s = try self.parseStatement();
-                statements.append(s) catch return ParserError.FailedAlloc;
+                statements.append(s) catch return ParserError.OutOfMemory;
                 self.advance();
                 continue :sw self.current_token;
             },
@@ -167,7 +167,7 @@ pub const Parser = struct {
     fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
         var left_expr = try self.parsePrefixToken(self.current_token);
         while (self.peek_token != TokenTag.Semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
-            const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+            const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
             left_expr_ptr.* = left_expr;
             left_expr = try self.parseInfixToken(left_expr_ptr);
         }
@@ -204,7 +204,7 @@ pub const Parser = struct {
             const current_token = self.current_token;
             self.advance();
             const right_expr = try self.parseExpression(.prefix);
-            const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+            const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
             right_ptr.* = right_expr;
             return .{
                 .operator = current_token,
@@ -220,7 +220,7 @@ pub const Parser = struct {
             const current_token = self.current_token;
             self.advance();
             const right = try self.parseExpression(Precedence.fromToken(current_token));
-            const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+            const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
             right_ptr.* = right;
             return .{
                 .operator = current_token,
@@ -242,12 +242,12 @@ pub const Parser = struct {
     fn parseIfExpression(self: *Parser) ParserError!ast.IfExpression {
         try self.expectPeek(.LeftParen);
         const condition = try self.parseExpression(.lowest);
-        const condition_ptr = self.allocator.create(ast.Expression) catch return ParserError.FailedAlloc;
+        const condition_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
         condition_ptr.* = condition;
 
         try self.expectPeek(.LeftBrace);
         const then_branch = try self.parseBlockStatement();
-        const then_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
+        const then_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
         then_ptr.* = then_branch;
 
         return sw: switch (self.peek_token) {
@@ -255,7 +255,7 @@ pub const Parser = struct {
                 self.advance();
                 try self.expectPeek(.LeftBrace);
                 const else_branch = try self.parseBlockStatement();
-                const else_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
+                const else_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
                 else_ptr.* = else_branch;
                 break :sw .{
                     .condition = condition_ptr,
@@ -282,7 +282,7 @@ pub const Parser = struct {
                         .RightParen => break :blk list,
                         else => {
                             const ident = try self.parseIdentifier();
-                            list.append(ident) catch return ParserError.FailedAlloc;
+                            list.append(ident) catch return ParserError.OutOfMemory;
                             self.chompComma();
                             self.advance();
                             continue :sw self.current_token;
@@ -294,7 +294,7 @@ pub const Parser = struct {
         // Parse function body.
         try self.expectPeek(.LeftBrace);
         const body = try self.parseBlockStatement();
-        const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.FailedAlloc;
+        const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
         body_ptr.* = body;
         return .{
             .parameters = parameters,
