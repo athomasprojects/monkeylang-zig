@@ -23,6 +23,7 @@ pub const Object = union(enum) {
             .function => |function| function.print(),
             .return_ => |return_value| return_value.value.print(),
             .error_ => |error_| error_.print(),
+            // .builtin => |builtin| builtin.print(),
         }
         std.debug.print("\n", .{});
     }
@@ -48,6 +49,7 @@ pub const Object = union(enum) {
             .function => |function| function.toString(allocator),
             .return_ => |return_value| return_value.value.toString(allocator),
             .error_ => |error_| try error_.toString(allocator),
+            // .builtin => |builtin| try builtin.toString(allocator),
         };
     }
 
@@ -60,6 +62,7 @@ pub const Object = union(enum) {
             .function => "FUNCTION",
             .return_ => unreachable,
             .error_ => "ERROR",
+            // .builtin => "BUILTIN",
         };
     }
 };
@@ -115,3 +118,5 @@ pub const Error = struct {
         return try std.fmt.allocPrint(allocator, "{s}", .{self.message});
     }
 };
+
+pub const BuiltinFunction = struct {};

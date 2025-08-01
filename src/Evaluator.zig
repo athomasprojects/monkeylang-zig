@@ -1,6 +1,6 @@
 const std = @import("std");
 const ast = @import("ast.zig");
-const builtin = @import("builtin.zig");
+const builtins = @import("builtins.zig");
 const obj = @import("object.zig");
 const Object = obj.Object;
 const Function = obj.Function;
@@ -13,7 +13,6 @@ const Environment = @import("environment.zig").Environment;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const StaticStringMap = std.static_string_map.StaticStringMap;
 const testing = std.testing;
 const expect = testing.expect;
 
@@ -54,12 +53,12 @@ fn evalStatement(self: *Evaluator, statement: *const ast.Statement, scope: *Envi
                 else => {
                     // Bind evaluated expression to identifier in the current scope.
                     scope.bind(let_statement.name.value, value) catch break :sw EvaluatorError.OutOfMemory;
-                    break :sw &builtin.NULL;
+                    break :sw &builtins.NULL;
                 },
             }
         },
         .block_statement => |*block_statement| {
-            var result: *Object = &builtin.NULL;
+            var result: *Object = &builtins.NULL;
             for (block_statement.statements.items) |*stmt| {
                 result = try self.evalStatement(stmt, scope);
                 switch (result.*) {
@@ -111,7 +110,7 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
             switch (function.*) {
                 .error_ => break :sw function,
                 else => {
-                    var evaled: *Object = &builtin.NULL;
+                    var evaled: *Object = &builtins.NULL;
                     var evaled_args = ArrayList(*Object).init(self.allocator);
                     if (call.args) |args| {
                         for (args.items) |*arg| {
@@ -136,7 +135,7 @@ fn createIntegerObject(self: *Evaluator, integer: i64) !*Object {
 }
 
 fn createBooleanObject(boolean: bool) *Object {
-    return if (boolean) &builtin.TRUE else &builtin.FALSE;
+    return if (boolean) &builtins.TRUE else &builtins.FALSE;
 }
 
 fn createStringObject(self: *Evaluator, string: []const u8) !*Object {
@@ -158,180 +157,166 @@ fn createFunctionLiteralObject(self: *Evaluator, func_literal: *const ast.Functi
 }
 
 fn evalPrefixExpression(self: *Evaluator, operator: *const Token, right: *Object) !*Object {
-    return sw: switch (operator.*) {
-        .Bang => try evalBangOperatorExpression(right),
-        .Minus => try self.evalMinusOperatorExpression(right),
+    switch (operator.*) {
+        .Bang => return try evalBangOperatorExpression(right),
+        .Minus => return try self.evalMinusOperatorExpression(right),
         else => {
-            const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
-            const msg: []const u8 = std.fmt.allocPrint(
-                self.allocator,
+            const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
+            return self.createError(
                 "unknown operator: {s}{s}",
                 .{ operator_string, right.typeName() },
-            ) catch break :sw EvaluatorError.OutOfMemory;
-            break :sw try self.createError(msg);
+            ) catch return EvaluatorError.OutOfMemory;
         },
-    };
+    }
 }
 
 fn evalInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
-    return sw: switch (left.*) {
+    switch (left.*) {
         .integer => switch (right.*) {
-            .integer => try self.evalIntegerInfixExpression(operator, left, right),
+            .integer => return try self.evalIntegerInfixExpression(operator, left, right),
             else => {
-                const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
-                const msg: []const u8 = std.fmt.allocPrint(
-                    self.allocator,
+                const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
+                return self.createError(
                     "type mismatch: {s} {s} {s}",
                     .{
                         left.typeName(),
                         operator_string,
                         right.typeName(),
                     },
-                ) catch break :sw EvaluatorError.OutOfMemory;
-                break :sw try self.createError(msg);
+                ) catch return EvaluatorError.OutOfMemory;
             },
         },
         .string => switch (right.*) {
             .string => switch (operator.*) {
-                .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
-                .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
+                .Equal => return nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
+                .NotEqual => return nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
                 .Plus => {
                     // Concatenate strings
                     const concatenated_string: []const u8 = std.fmt.allocPrint(
                         self.allocator,
                         "{s}{s}",
                         .{ left.string, right.string },
-                    ) catch break :sw EvaluatorError.OutOfMemory;
-                    break :sw try self.createStringObject(concatenated_string);
+                    ) catch return EvaluatorError.OutOfMemory;
+                    return try self.createStringObject(concatenated_string);
                 },
                 else => {
-                    const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
-                    const msg: []const u8 = std.fmt.allocPrint(
-                        self.allocator,
+                    const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
+                    return self.createError(
                         "unknown operator: {s} {s} {s}",
                         .{
                             left.typeName(),
                             operator_string,
                             right.typeName(),
                         },
-                    ) catch break :sw EvaluatorError.OutOfMemory;
-                    break :sw try self.createError(msg);
+                    ) catch return EvaluatorError.OutOfMemory;
                 },
             },
             else => {
-                const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
-                const msg: []const u8 = std.fmt.allocPrint(
-                    self.allocator,
+                const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
+                return self.createError(
                     "type mismatch: {s} {s} {s}",
                     .{
                         left.typeName(),
                         operator_string,
                         right.typeName(),
                     },
-                ) catch break :sw EvaluatorError.OutOfMemory;
-                break :sw try self.createError(msg);
+                ) catch return EvaluatorError.OutOfMemory;
             },
         },
         else => switch (operator.*) {
-            .Equal => nativeBoolToBooleanObject(std.meta.eql(left.*, right.*)),
-            .NotEqual => nativeBoolToBooleanObject(!std.meta.eql(left.*, right.*)),
+            .Equal => return nativeBoolToBooleanObject(std.meta.eql(left.*, right.*)),
+            .NotEqual => return nativeBoolToBooleanObject(!std.meta.eql(left.*, right.*)),
             else => {
-                const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
-                const msg: []const u8 = std.fmt.allocPrint(
-                    self.allocator,
+                const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
+                return self.createError(
                     "unknown operator: {s} {s} {s}",
                     .{
                         left.typeName(),
                         operator_string,
                         right.typeName(),
                     },
-                ) catch break :sw EvaluatorError.OutOfMemory;
-                break :sw try self.createError(msg);
+                ) catch return EvaluatorError.OutOfMemory;
             },
         },
-    };
+    }
 }
 
 fn evalIntegerInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
-    return sw: switch (operator.*) {
+    return switch (operator.*) {
         .Plus => try self.createIntegerObject(left.integer + right.integer),
         .Minus => try self.createIntegerObject(left.integer - right.integer),
         .Asterisk => try self.createIntegerObject(left.integer * right.integer),
         .Slash => {
-            const division = std.math.divExact(i64, left.integer, right.integer) catch break :sw EvaluatorError.FailedDivision;
-            break :sw try self.createIntegerObject(division);
+            const division = std.math.divExact(i64, left.integer, right.integer) catch return EvaluatorError.FailedDivision;
+            return try self.createIntegerObject(division);
         },
         .GreaterThan => nativeBoolToBooleanObject(left.integer > right.integer),
         .LessThan => nativeBoolToBooleanObject(left.integer < right.integer),
         .Equal => nativeBoolToBooleanObject(left.integer == right.integer),
         .NotEqual => nativeBoolToBooleanObject(left.integer != right.integer),
         else => {
-            const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
-            const msg: []const u8 = std.fmt.allocPrint(
-                self.allocator,
+            const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
+            return self.createError(
                 "unknown operator: {s} {s} {s}",
                 .{
                     left.typeName(),
                     operator_string,
                     right.typeName(),
                 },
-            ) catch break :sw EvaluatorError.OutOfMemory;
-            break :sw try self.createError(msg);
+            ) catch return EvaluatorError.OutOfMemory;
         },
     };
 }
 
-fn evalStringInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
-    return sw: switch (operator.*) {
-        .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
-        .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
-        else => {
-            const operator_string: []u8 = operator.toString(self.allocator) catch break :sw EvaluatorError.OutOfMemory;
-            const msg: []const u8 = std.fmt.allocPrint(
-                self.allocator,
-                "unknown operator: {s} {s} {s}",
-                .{ left.typeName(), operator_string, right.typeName() },
-            ) catch break :sw EvaluatorError.OutOfMemory;
-            break :sw try self.createError(msg);
-        },
-    };
-}
+// fn evalStringInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
+//     return switch (operator.*) {
+//         .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
+//         .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
+//         else => {
+//             const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
+//             return self.createError(
+//                 "unknown operator: {s} {s} {s}",
+//                 .{
+//                     left.typeName(),
+//                     operator_string,
+//                     right.typeName(),
+//                 },
+//             ) catch return EvaluatorError.OutOfMemory;
+//         },
+//     };
+// }
 
 fn evalBangOperatorExpression(right: *Object) !*Object {
     return switch (right.*) {
-        .boolean => |boolean| if (boolean) &builtin.FALSE else &builtin.TRUE,
-        else => &builtin.FALSE,
+        .boolean => |boolean| if (boolean) &builtins.FALSE else &builtins.TRUE,
+        else => &builtins.FALSE,
     };
 }
 
 fn evalMinusOperatorExpression(self: *Evaluator, right: *Object) !*Object {
-    return sw: switch (right.*) {
-        .integer => |value| try self.createIntegerObject(-value),
+    switch (right.*) {
+        .integer => |value| return try self.createIntegerObject(-value),
         else => {
-            const msg: []u8 = std.fmt.allocPrint(
-                self.allocator,
+            return self.createError(
                 "unknown operator: -{s}",
                 .{right.typeName()},
-            ) catch break :sw EvaluatorError.OutOfMemory;
-            break :sw try self.createError(msg);
+            ) catch return EvaluatorError.OutOfMemory;
         },
-    };
+    }
 }
 
 fn evalIfExpression(self: *Evaluator, if_expr: *const ast.IfExpression, scope: *Environment) EvaluatorError!*Object {
     const condition: *Object = self.evalExpression(if_expr.condition, scope) catch return EvaluatorError.InvalidCondition;
-    return sw: switch (condition.*) {
-        .error_ => condition,
-        else => {
-            if (isTruthy(condition)) {
-                break :sw try self.evalStatement(&.{ .block_statement = if_expr.then_branch.* }, scope);
-            } else if (if_expr.else_branch) |else_branch| {
-                break :sw try self.evalStatement(&.{ .block_statement = else_branch.* }, scope);
-            } else {
-                break :sw &builtin.NULL;
-            }
+    switch (condition.*) {
+        .error_ => return condition,
+        else => if (isTruthy(condition)) {
+            return try self.evalStatement(&.{ .block_statement = if_expr.then_branch.* }, scope);
+        } else if (if_expr.else_branch) |else_branch| {
+            return try self.evalStatement(&.{ .block_statement = else_branch.* }, scope);
+        } else {
+            return &builtins.NULL;
         },
-    };
+    }
 }
 
 fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, scope: *Environment) !*Object {
@@ -339,12 +324,10 @@ fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, scope: *E
         return value;
     }
 
-    const msg: []const u8 = std.fmt.allocPrint(
-        self.allocator,
+    return self.createError(
         "identifier not found: {s}",
         .{identifier.value},
     ) catch return EvaluatorError.OutOfMemory;
-    return try self.createError(msg);
 }
 
 // fn evalBlock(self: *Evaluator, block: *ast.BlockStatement, scope: *Environment) EvaluatorError!*Object {
@@ -360,52 +343,46 @@ fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, scope: *E
 // }
 
 fn applyFunction(self: *Evaluator, func: *Object, args: []*Object) EvaluatorError!*Object {
-    return sw: switch (func.*) {
+    switch (func.*) {
         .function => |*function| {
             if (function.parameters) |parameters| {
                 if (parameters.items.len != args.len) {
-                    const msg: []const u8 = std.fmt.allocPrint(
-                        self.allocator,
+                    return self.createError(
                         "incorrect number of arguments: expected {d}, got {d}",
                         .{ parameters.items.len, args.len },
-                    ) catch break :sw EvaluatorError.OutOfMemory;
-                    break :sw try self.createError(msg);
+                    ) catch return EvaluatorError.OutOfMemory;
                 }
             } else {
                 if (args.len > 0) {
-                    const msg: []const u8 = std.fmt.allocPrint(
-                        self.allocator,
+                    return self.createError(
                         "incorrect number of arguments: expected 0, got {d}",
                         .{args.len},
                     ) catch return EvaluatorError.OutOfMemory;
-                    return try self.createError(msg);
                 }
             }
 
             const extended_env = try self.extendFunctionEnvironment(function, args);
-            var evaluated: *Object = &builtin.NULL;
+            var evaluated: *Object = &builtins.NULL;
             for (function.body.statements.items) |*stmt| {
                 evaluated = try self.evalStatement(stmt, extended_env);
                 switch (evaluated.*) {
-                    .error_ => break :sw evaluated,
-                    .return_ => |return_value| break :sw return_value.value,
+                    .error_ => return evaluated,
+                    .return_ => |return_value| return return_value.value,
                     else => {},
                 }
             }
-            break :sw switch (evaluated.*) {
+            return switch (evaluated.*) {
                 .return_ => |return_value| return_value.value,
                 else => evaluated,
             };
         },
         else => {
-            const msg: []const u8 = std.fmt.allocPrint(
-                self.allocator,
+            return self.createError(
                 "not a function: {s}",
                 .{func.typeName()},
-            ) catch break :sw EvaluatorError.OutOfMemory;
-            break :sw try self.createError(msg);
+            ) catch return EvaluatorError.OutOfMemory;
         },
-    };
+    }
 }
 
 fn extendFunctionEnvironment(self: *Evaluator, func: *Function, args: []*Object) !*Environment {
@@ -422,7 +399,7 @@ fn extendFunctionEnvironment(self: *Evaluator, func: *Function, args: []*Object)
 }
 
 fn nativeBoolToBooleanObject(native: bool) *Object {
-    return if (native) &builtin.TRUE else &builtin.FALSE;
+    return if (native) &builtins.TRUE else &builtins.FALSE;
 }
 
 fn isTruthy(object: *Object) bool {
@@ -433,9 +410,17 @@ fn isTruthy(object: *Object) bool {
     };
 }
 
-fn createError(self: *Evaluator, message: []const u8) !*Object {
+fn createError(self: *Evaluator, comptime fmt: []const u8, args: anytype) !*Object {
     const error_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.OutOfMemory;
-    error_ptr.* = .{ .error_ = ErrorObject{ .message = message } };
+    error_ptr.* = .{
+        .error_ = .{
+            .message = try std.fmt.allocPrint(
+                self.allocator,
+                fmt,
+                args,
+            ),
+        },
+    };
     return error_ptr;
 }
 
