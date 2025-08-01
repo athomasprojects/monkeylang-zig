@@ -441,7 +441,7 @@ pub const Evaluator = struct {
 };
 
 // Tests
-test "Evaluator - null" {
+test "null" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -461,7 +461,7 @@ test "Evaluator - null" {
     try testing.expectEqualStrings(expected, result);
 }
 
-test "Evaluator - boolean literal" {
+test "boolean literal" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -482,7 +482,7 @@ test "Evaluator - boolean literal" {
     }
 }
 
-test "Evaluator - integer literal" {
+test "integer literal" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -503,7 +503,7 @@ test "Evaluator - integer literal" {
     }
 }
 
-test "Evaluator - prefix operators" {
+test "prefix operators" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -542,7 +542,7 @@ test "Evaluator - prefix operators" {
     }
 }
 
-test "Evaluator - integer expressions" {
+test "integer expressions" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -583,7 +583,7 @@ test "Evaluator - integer expressions" {
     }
 }
 
-test "Evaluator - boolean expressions" {
+test "boolean expressions" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -644,7 +644,7 @@ test "Evaluator - boolean expressions" {
     }
 }
 
-test "Evaluator - conditional expressions" {
+test "conditional expressions" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -683,7 +683,7 @@ test "Evaluator - conditional expressions" {
     }
 }
 
-test "Evaluator - nested conditional expressions" {
+test "nested conditional expressions" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -711,7 +711,29 @@ test "Evaluator - nested conditional expressions" {
     try testing.expect(10 == object.integer);
 }
 
-test "Evaluator - error handling" {
+test "string concatenation" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\let bar = "MONKEY";
+        \\"foo" + " "+ bar + " " + "baz!"
+    ;
+
+    const expected: []const u8 = "\"foo MONKEY baz!\"";
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const object: *Object = try evaluator.evalProgram(&program, &env);
+    const result = try object.toString(allocator);
+    try testing.expectEqualStrings(expected, result);
+}
+
+test "error handling" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -757,7 +779,7 @@ test "Evaluator - error handling" {
     }
 }
 
-test "Evaluator - let statements" {
+test "let statements" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -790,7 +812,7 @@ test "Evaluator - let statements" {
     }
 }
 
-test "Evaluator - function literals" {
+test "function literals" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -811,7 +833,25 @@ test "Evaluator - function literals" {
     try testing.expect(4 == object.integer);
 }
 
-test "Evaluator - simple closures " {
+test "call expressions" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\fn(a,b) { a > b }(1, 5-3);
+    ;
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const object: *Object = try evaluator.evalProgram(&program, &env);
+    try testing.expect(false == object.boolean);
+}
+
+test "simple closures" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -834,7 +874,7 @@ test "Evaluator - simple closures " {
     try testing.expect(4 == object.integer);
 }
 
-test "closures" {
+test "closures with string concatenation" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
