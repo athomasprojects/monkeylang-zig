@@ -180,7 +180,7 @@ pub const Token = union(TokenTag) {
     }
 };
 
-const KeywordMap = StaticStringMap(Token).initComptime(.{
+const keyword_map = StaticStringMap(Token).initComptime(.{
     .{ "let", .Let },
     .{ "fn", .Function },
     .{ "if", .If },
@@ -191,15 +191,15 @@ const KeywordMap = StaticStringMap(Token).initComptime(.{
 });
 
 /// Returns the corresponding keyword token if the string is a keyword, otherwise returns and identifier token.
-pub fn lookupIdent(str: []const u8) Token {
-    return KeywordMap.get(str) orelse Token{ .Ident = str };
+pub fn keywordToIdentifier(str: []const u8) Token {
+    return keyword_map.get(str) orelse Token{ .Ident = str };
 }
 
 // Tests
 test "Token - lookup identifiers" {
     const strings = [_][]const u8{ "let", "fn", "if", "else", "true", "false", "return", "does not exist!", "15" };
     for (strings) |str| {
-        const result = switch (lookupIdent(str)) {
+        const result = switch (keywordToIdentifier(str)) {
             .Let, .Function, .If, .Else, .True, .False, .Return => true,
             .Ident => |ident| std.mem.eql(u8, ident, str),
             else => false,

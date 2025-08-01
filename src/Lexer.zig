@@ -155,7 +155,7 @@ fn readIdentifier(self: *Lexer) Token {
     const ident = self.takeWhile(isLetter);
     self.pos += ident.len - 1;
     self.advance();
-    return token.lookupIdent(ident);
+    return token.keywordToIdentifier(ident);
 }
 
 fn readString(self: *Lexer) Token {
