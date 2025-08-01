@@ -74,17 +74,17 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     const lexer_tests = b.addTest(.{
-        .root_source_file = b.path("src/lexer.zig"),
+        .root_source_file = b.path("src/Lexer.zig"),
         .target = target,
         .optimize = optimize,
     });
     const parser_tests = b.addTest(.{
-        .root_source_file = b.path("src/parser.zig"),
+        .root_source_file = b.path("src/Parser.zig"),
         .target = target,
         .optimize = optimize,
     });
     const evaluator_tests = b.addTest(.{
-        .root_source_file = b.path("src/evaluator.zig"),
+        .root_source_file = b.path("src/Evaluator.zig"),
         .target = target,
         .optimize = optimize,
     });

@@ -4,11 +4,10 @@ const std = @import("std");
 const ast = @import("ast.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Environment = @import("environment.zig").Environment;
-const Evaluator = @import("evaluator.zig").Evaluator;
-const Lexer = @import("lexer.zig").Lexer;
-const Parser = @import("parser.zig").Parser;
+const Evaluator = @import("Evaluator.zig");
+const Lexer = @import("Lexer.zig");
+const Parser = @import("Parser.zig");
 const Object = @import("object.zig").Object;
-const printParserError = @import("parser.zig").printParserError;
 
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
@@ -49,7 +48,7 @@ pub fn start() !void {
 
                     // if (parser.parse()) |program| {
                     //     program.printStatements();
-                    // } else |err| printParserError(err);
+                    // } else |err| Parser.printParserError(err);
                 }
             }
         } else |_| {}
