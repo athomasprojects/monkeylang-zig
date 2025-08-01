@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "monkeylang_zig",
         .root_module = exe_mod,
-        .use_llvm = is_x86_linux,
+        .use_llvm = is_x86_linux, // Should default to x86 backend on x86 Linux by default
     });
 
     // This declares intent for the executable to be installed into the

@@ -273,25 +273,28 @@ pub const Parser = struct {
     fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
         try self.expectPeek(.LeftParen);
         self.advance();
+
+        // var parameters: ?ArrayList(ast.Identifier) = null;
         const parameters: ?ArrayList(ast.Identifier) = blk: {
-            switch (self.current_token) {
-                .RightParen => break :blk null, // No parameters to parse.
-                else => {
-                    var list = ArrayList(ast.Identifier).init(self.allocator);
-                    sw: switch (self.current_token) {
-                        .RightParen => break :blk list,
-                        else => {
-                            const ident = try self.parseIdentifier();
-                            list.append(ident) catch return ParserError.OutOfMemory;
-                            self.chompComma();
-                            self.advance();
-                            continue :sw self.current_token;
-                        },
+            if (self.current_token != .RightParen) {
+                var idents = ArrayList(ast.Identifier).init(self.allocator);
+                while (true) {
+                    const ident = try self.parseIdentifier();
+                    idents.append(ident) catch return ParserError.OutOfMemory;
+                    if (self.peek_token == .Comma) {
+                        self.advance();
+                        self.advance();
+                    } else {
+                        break :blk idents;
                     }
-                },
+                }
+            } else {
+                break :blk null;
             }
         };
-        // Parse function body.
+
+        // Parse the function body.
+        try self.expectPeek(.RightParen);
         try self.expectPeek(.LeftBrace);
         const body = try self.parseBlockStatement();
         const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
@@ -303,24 +306,33 @@ pub const Parser = struct {
     }
 
     fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.Call {
-        self.advance();
-        // No arguments to parse.
-        switch (self.peek_token) {
-            .RightParen => return .{ .callee = callee },
-            else => {},
+        self.advance(); // Consume left paren.
+
+        // No arguments.
+        if (self.current_token == .RightParen) {
+            return .{ .callee = callee };
         }
-        // Parse function arguments.
+
+        // Parse arguments.
         var args = ArrayList(ast.Expression).init(self.allocator);
-        return sw: switch (self.current_token) {
-            .RightParen => .{ .args = args, .callee = callee },
-            else => {
-                const expr = try self.parseExpression(.lowest);
-                args.append(expr) catch return ParserError.InvalidExpressionList;
-                self.chompComma();
+        while (true) {
+            const expr = try self.parseExpression(.lowest);
+            args.append(expr) catch return ParserError.InvalidExpressionList;
+
+            if (self.peek_token == .Comma) {
                 self.advance();
-                continue :sw self.current_token;
-            },
-        };
+                self.advance();
+                continue;
+            }
+
+            if (self.peek_token == .RightParen) {
+                self.advance();
+                break;
+            } else {
+                return ParserError.ExpectedPeek;
+            }
+        }
+        return .{ .callee = callee, .args = args };
     }
 
     // Expressions

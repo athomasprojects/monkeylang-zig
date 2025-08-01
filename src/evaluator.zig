@@ -1,16 +1,16 @@
 const std = @import("std");
 const ast = @import("ast.zig");
 const builtin = @import("builtin.zig");
+const obj = @import("object.zig");
+const Object = obj.Object;
+const Function = obj.Function;
+const ReturnValue = obj.ReturnValue;
+const ErrorObject = obj.Error;
 const Token = @import("token.zig").Token;
-const Object = @import("object.zig").Object;
-const ErrorObject = @import("object.zig").Error;
-const Function = @import("object.zig").Function;
-const ReturnValue = @import("object.zig").ReturnValue;
 const Environment = @import("environment.zig").Environment;
-
 const Allocator = std.mem.Allocator;
-const StaticStringMap = std.static_string_map.StaticStringMap;
 const ArrayList = std.ArrayList;
+const StaticStringMap = std.static_string_map.StaticStringMap;
 
 pub const EvaluatorError = error{
     FailedDivision,
@@ -105,7 +105,7 @@ pub const Evaluator = struct {
                     .error_ => break :sw function,
                     else => {
                         var evaled: *Object = &builtin.NULL;
-                        var evaled_args = std.ArrayList(*Object).init(self.allocator);
+                        var evaled_args = ArrayList(*Object).init(self.allocator);
                         if (call.args) |args| {
                             for (args.items) |*arg| {
                                 evaled = try self.evalExpression(arg, scope);
@@ -340,6 +340,18 @@ pub const Evaluator = struct {
         return try self.createError(msg);
     }
 
+    // fn evalBlock(self: *Evaluator, block: *ast.BlockStatement, scope: *Environment) EvaluatorError!*Object {
+    //     var result: *Object = &builtin.NULL;
+    //     for (block.statements.items) |*stmt| {
+    //         result = try self.evalStatement(stmt, scope);
+    //         switch (result.*) {
+    //             .error_, .return_ => return result,
+    //             else => {},
+    //         }
+    //     }
+    //     return result;
+    // }
+
     fn applyFunction(self: *Evaluator, func: *Object, args: []*Object) EvaluatorError!*Object {
         return sw: switch (func.*) {
             .function => |*function| {
@@ -367,6 +379,11 @@ pub const Evaluator = struct {
                 var evaluated: *Object = &builtin.NULL;
                 for (function.body.statements.items) |*stmt| {
                     evaluated = try self.evalStatement(stmt, extended_env);
+                    switch (evaluated.*) {
+                        .error_ => break :sw evaluated,
+                        .return_ => |return_value| break :sw return_value.value,
+                        else => {},
+                    }
                 }
                 break :sw switch (evaluated.*) {
                     .return_ => |return_value| return_value.value,

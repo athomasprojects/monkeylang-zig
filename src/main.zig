@@ -921,3 +921,50 @@ test "Evaluator - function literals" {
     const obj: *Object = try evaluator.evalProgram(&program, &env);
     try testing.expect(4 == obj.integer);
 }
+
+test "Evaluator - simple closures " {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\let newAdder = fn(x) {
+        \\  fn(y) { x + y };
+        \\};
+        \\let addTwo = newAdder(2);
+        \\addTwo(2);
+    ;
+
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const obj: *Object = try evaluator.evalProgram(&program, &env);
+    try testing.expect(4 == obj.integer);
+}
+
+test "Evaluator - closures" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\let makeGreeter = fn(greeting) { fn(name) { greeting + " " + name + "!" } };
+        \\let heyThere = makeGreeter("Hey there");
+        \\heyThere("Thorsten");
+    ;
+
+    const expected: []const u8 = "\"Hey there Thorsten!\"";
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const obj: *Object = try evaluator.evalProgram(&program, &env);
+    const result = try obj.toString(allocator);
+    try testing.expectEqualStrings(expected, result);
+}
+
