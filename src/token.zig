@@ -3,7 +3,6 @@ const testing = std.testing;
 const expect = testing.expect;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
-const StaticStringMap = std.static_string_map.StaticStringMap;
 pub const TokenTag = enum {
     // End of file
     Eof,
@@ -180,7 +179,7 @@ pub const Token = union(TokenTag) {
     }
 };
 
-const keyword_map = StaticStringMap(Token).initComptime(.{
+const keywords = std.StaticStringMap(Token).initComptime(.{
     .{ "let", .Let },
     .{ "fn", .Function },
     .{ "if", .If },
@@ -192,7 +191,7 @@ const keyword_map = StaticStringMap(Token).initComptime(.{
 
 /// Returns the corresponding keyword token if the string is a keyword, otherwise returns and identifier token.
 pub fn keywordToIdentifier(str: []const u8) Token {
-    return keyword_map.get(str) orelse Token{ .Ident = str };
+    return keywords.get(str) orelse Token{ .Ident = str };
 }
 
 // Tests

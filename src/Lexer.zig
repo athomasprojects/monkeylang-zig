@@ -9,8 +9,8 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 
 input: []const u8 = undefined,
 pos: usize = 0,
-ch: ?u8 = null,
 length: usize = 0,
+ch: ?u8 = null,
 pub const Lexer = @This();
 
 /// Creates a new lexer from the `input`.
@@ -21,8 +21,8 @@ pub fn init(input: []const u8) Lexer {
         },
         else => .{
             .input = input,
-            .ch = input[0],
             .length = input.len,
+            .ch = input[0],
         },
     };
 }
@@ -31,71 +31,71 @@ pub fn init(input: []const u8) Lexer {
 pub fn nextToken(self: *Lexer) Token {
     self.skipWhitespace();
     if (self.ch) |ch| {
-        return sw: switch (ch) {
+        return state: switch (ch) {
             '=' => self.twoCharToken('=', .Assign, .Equal),
             '!' => self.twoCharToken('=', .Bang, .NotEqual),
             '-' => {
                 self.advance();
-                break :sw .Minus;
+                break :state .Minus;
             },
             '+' => {
                 self.advance();
-                break :sw .Plus;
+                break :state .Plus;
             },
             '*' => {
                 self.advance();
-                break :sw .Asterisk;
+                break :state .Asterisk;
             },
             '/' => {
                 self.advance();
-                break :sw .Slash;
+                break :state .Slash;
             },
             '(' => {
                 self.advance();
-                break :sw .LeftParen;
+                break :state .LeftParen;
             },
             ')' => {
                 self.advance();
-                break :sw .RightParen;
+                break :state .RightParen;
             },
             '{' => {
                 self.advance();
-                break :sw .LeftBrace;
+                break :state .LeftBrace;
             },
             '}' => {
                 self.advance();
-                break :sw .RightBrace;
+                break :state .RightBrace;
             },
             '[' => {
                 self.advance();
-                break :sw .LeftBracket;
+                break :state .LeftBracket;
             },
             ']' => {
                 self.advance();
-                break :sw .RightBracket;
+                break :state .RightBracket;
             },
             '<' => {
                 self.advance();
-                break :sw .LessThan;
+                break :state .LessThan;
             },
             '>' => {
                 self.advance();
-                break :sw .GreaterThan;
+                break :state .GreaterThan;
             },
             ',' => {
                 self.advance();
-                break :sw .Comma;
+                break :state .Comma;
             },
             ';' => {
                 self.advance();
-                break :sw .Semicolon;
+                break :state .Semicolon;
             },
             '"' => self.readString(),
             else => {
-                if (isLetter(ch)) break :sw self.readIdentifier();
-                if (ascii.isDigit(ch)) break :sw self.readNumber();
+                if (isLetter(ch)) break :state self.readIdentifier();
+                if (ascii.isDigit(ch)) break :state self.readNumber();
                 self.advance();
-                break :sw .Illegal;
+                break :state .Illegal;
             },
         };
     } else {
@@ -109,12 +109,6 @@ fn skipWhitespace(self: *Lexer) void {
     }
 }
 
-// fn scanUntil(self: *Lexer, condition: fn (ch: u8) bool) void {
-//     while (self.ch) |ch| {
-//         if (condition(ch)) self.advance() else break;
-//     }
-// }
-
 fn advance(self: *Lexer) void {
     if (self.length > 0) {
         if (self.pos >= self.length - 1) {
@@ -127,23 +121,16 @@ fn advance(self: *Lexer) void {
 }
 
 fn twoCharToken(self: *Lexer, match: u8, default_token: Token, two_char_token: Token) Token {
-    if (self.peekChar()) |peeked| {
-        if (peeked == match) {
-            self.advance();
-            self.advance();
-            return two_char_token;
-        }
+    if (self.length - self.pos - 1 >= 1 and self.input[self.pos + 1] == match) {
+        self.advance();
+        self.advance();
+        return two_char_token;
     }
     self.advance();
     return default_token;
 }
 
-fn peekChar(self: *Lexer) ?u8 {
-    const remaining_chars = self.length - self.pos - 1;
-    return if (remaining_chars >= 1) self.input[self.pos + 1] else null;
-}
-
-fn takeWhile(self: Lexer, condition: fn (u8) bool) []const u8 {
+fn takeWhile(self: *Lexer, condition: *const fn (u8) bool) []const u8 {
     var count: usize = 0;
     for (self.input[self.pos..self.length]) |ch| {
         if (condition(ch)) count += 1 else break;
@@ -181,6 +168,10 @@ fn readNumber(self: *Lexer) Token {
     }
 }
 
+fn isLetter(ch: u8) bool {
+    return ch == '_' or ascii.isAlphabetic(ch);
+}
+
 /// Pretty printing (intended for print debugging).
 /// Writes the string representation of the `Lexer` to the stderr.
 pub fn print(self: Lexer) void {
@@ -194,10 +185,6 @@ pub fn print(self: Lexer) void {
     }
     std.debug.print("    length: {},\n", .{self.length});
     std.debug.print("}}", .{});
-}
-
-fn isLetter(ch: u8) bool {
-    return ch == '_' or ascii.isAlphabetic(ch);
 }
 
 // Tests
@@ -251,7 +238,8 @@ test "Lexer - init lexer" {
 // pointer comparison can be somewhat ambiguous and therefore is not handled by
 // `std.meta.eql`. Instead the user has to implement the comparison.
 //
-// The `std.meta.eql` docs explicitly states that pointers are NOT followed! - (see: https://ziglang.org/documentation/master/std/#std.meta.eql)
+// The `std.meta.eql` docs explicitly states that pointers are NOT followed!
+// See: https://ziglang.org/documentation/master/std/#std.meta.eql
 // See also: https://www.reddit.com/r/Zig/comments/17ug7l7/zigs_stdmetaeql_fails_to_find_tagged_union/
 test "Lexer - next token" {
     const str =
@@ -306,13 +294,13 @@ test "Lexer - next token" {
     var lexer: Lexer = .init(str);
     var idx: usize = 0;
     var next_tok: Token = lexer.nextToken();
-    sw: switch (next_tok) {
+    state: switch (next_tok) {
         .Eof => {},
         else => {
             try expect(expected_tokens[idx].isEqual(next_tok));
             next_tok = lexer.nextToken();
             idx += 1;
-            continue :sw next_tok;
+            continue :state next_tok;
         },
     }
 }

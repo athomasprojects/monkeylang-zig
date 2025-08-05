@@ -11,3 +11,9 @@ Thorsten's book doesn't cover the details of implementing a garbage collector, b
 
 + _Crafting Interpreters_ might cover some things about implementing a gc?
 + TJ's boot.dev course goes over implementing a ref counting gc in C?
+
+## Lexer
+Remove `ch` field from `Lexer` struct since in the event that the value is not null, we waste 7 bytes of padding per struct. We can instead use indexing (i.e. `self.input[self.pos]`) to determine the character in the stream for the current lexer state.
+
+## Evaluator
+The evaluator struct has a single field that is just the allocator interface. We don't need to create a struct that holds this. Instead we can just pass the allocator to the callee as needed from the calling context. The only public function we need to expose from the evaluator module is the `evalProgram` method.

@@ -4,6 +4,8 @@ const Environment = @import("environment.zig").Environment;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const ToStringError = ast.ToStringError;
+const EvaluatorError = @import("Evaluator.zig").EvaluatorError;
+const BuiltinTagType = @import("builtins.zig").TagType;
 
 pub const Object = union(enum) {
     null_,
@@ -13,6 +15,7 @@ pub const Object = union(enum) {
     return_: ReturnValue,
     function: Function,
     error_: Error,
+    builtin: BuiltinFunction,
 
     pub fn print(self: Object) void {
         switch (self) {
@@ -23,7 +26,7 @@ pub const Object = union(enum) {
             .function => |function| function.print(),
             .return_ => |return_value| return_value.value.print(),
             .error_ => |error_| error_.print(),
-            // .builtin => |builtin| builtin.print(),
+            .builtin => |builtin_fn| builtin_fn.print(),
         }
         std.debug.print("\n", .{});
     }
@@ -49,7 +52,7 @@ pub const Object = union(enum) {
             .function => |function| function.toString(allocator),
             .return_ => |return_value| return_value.value.toString(allocator),
             .error_ => |error_| try error_.toString(allocator),
-            // .builtin => |builtin| try builtin.toString(allocator),
+            .builtin => |builtin_fn| try builtin_fn.toString(allocator),
         };
     }
 
@@ -62,7 +65,7 @@ pub const Object = union(enum) {
             .function => "FUNCTION",
             .return_ => unreachable,
             .error_ => "ERROR",
-            // .builtin => "BUILTIN",
+            .builtin => "BUILTIN",
         };
     }
 };
@@ -119,4 +122,23 @@ pub const Error = struct {
     }
 };
 
-pub const BuiltinFunction = struct {};
+pub const BuiltinFunction = struct {
+    func: *const fn (Allocator, []*Object) EvaluatorError!*Object,
+    tag: BuiltinTagType,
+
+    pub fn call(self: BuiltinFunction, allocator: Allocator, args: []*Object) !*Object {
+        return try self.func(allocator, args);
+    }
+
+    pub fn print(self: BuiltinFunction) void {
+        std.debug.print("BuiltinFunction#{s}", .{@tagName(self.tag)});
+    }
+
+    pub fn toString(self: BuiltinFunction, allocator: Allocator) ToStringError![]u8 {
+        return try std.fmt.allocPrint(
+            allocator,
+            "BuiltinFunction#{s}",
+            .{@tagName(self.tag)},
+        );
+    }
+};
