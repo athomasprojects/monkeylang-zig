@@ -32,74 +32,74 @@ pub fn nextToken(self: *Lexer) Token {
     self.skipWhitespace();
     if (self.ch) |ch| {
         return state: switch (ch) {
-            '=' => self.twoCharToken('=', .Assign, .Equal),
-            '!' => self.twoCharToken('=', .Bang, .NotEqual),
+            '=' => self.twoCharToken('=', .assign, .equal),
+            '!' => self.twoCharToken('=', .bang, .not_equal),
             '-' => {
                 self.advance();
-                break :state .Minus;
+                break :state .minus;
             },
             '+' => {
                 self.advance();
-                break :state .Plus;
+                break :state .plus;
             },
             '*' => {
                 self.advance();
-                break :state .Asterisk;
+                break :state .asterisk;
             },
             '/' => {
                 self.advance();
-                break :state .Slash;
+                break :state .slash;
             },
             '(' => {
                 self.advance();
-                break :state .LeftParen;
+                break :state .l_paren;
             },
             ')' => {
                 self.advance();
-                break :state .RightParen;
+                break :state .r_paren;
             },
             '{' => {
                 self.advance();
-                break :state .LeftBrace;
+                break :state .l_brace;
             },
             '}' => {
                 self.advance();
-                break :state .RightBrace;
+                break :state .r_brace;
             },
             '[' => {
                 self.advance();
-                break :state .LeftBracket;
+                break :state .l_bracket;
             },
             ']' => {
                 self.advance();
-                break :state .RightBracket;
+                break :state .r_bracket;
             },
             '<' => {
                 self.advance();
-                break :state .LessThan;
+                break :state .less_than;
             },
             '>' => {
                 self.advance();
-                break :state .GreaterThan;
+                break :state .greater_than;
             },
             ',' => {
                 self.advance();
-                break :state .Comma;
+                break :state .comma;
             },
             ';' => {
                 self.advance();
-                break :state .Semicolon;
+                break :state .semicolon;
             },
             '"' => self.readString(),
             else => {
                 if (isLetter(ch)) break :state self.readIdentifier();
                 if (ascii.isDigit(ch)) break :state self.readNumber();
                 self.advance();
-                break :state .Illegal;
+                break :state .illegal;
             },
         };
     } else {
-        return .Eof;
+        return .eof;
     }
 }
 
@@ -154,7 +154,7 @@ fn readString(self: *Lexer) Token {
     }.call);
     self.pos += str.len;
     self.advance();
-    return if (self.pos >= self.length) .Illegal else .{ .String = str };
+    return if (self.pos >= self.length) .illegal else .{ .string_literal = str };
 }
 
 fn readNumber(self: *Lexer) Token {
@@ -162,9 +162,9 @@ fn readNumber(self: *Lexer) Token {
     self.pos += literal.len - 1;
     self.advance();
     if (std.fmt.parseInt(i64, literal, 10)) |int| {
-        return .{ .Integer = int };
+        return .{ .integer_literal = int };
     } else |_| {
-        return .Illegal;
+        return .illegal;
     }
 }
 
@@ -251,51 +251,51 @@ test "Lexer - next token" {
         \\return * =!=
     ;
     const expected_tokens = [_]Token{
-        .Assign,
-        .Plus,
-        .Minus,
-        .Slash,
-        .Comma,
-        .Semicolon,
-        .LeftBrace,
-        .LessThan,
-        .RightBracket,
-        .LeftBracket,
-        .GreaterThan,
-        .RightParen,
-        .LeftParen,
-        .Bang,
-        .Minus,
-        .{ .Integer = 512 },
-        .Illegal,
-        .{ .Integer = 79 },
-        .Let,
-        .If,
-        .Else,
-        .Function,
-        .True,
-        .False,
-        .{ .Ident = "_foo_" },
-        .Bang,
-        .Bang,
-        .{ .Ident = "bar_baz__" },
-        .{ .String = "string!%" },
-        .NotEqual,
-        .Equal,
-        .Equal,
-        .Assign,
-        .GreaterThan,
-        .Assign,
-        .Return,
-        .Asterisk,
-        .Assign,
-        .NotEqual,
+        .assign,
+        .plus,
+        .minus,
+        .slash,
+        .comma,
+        .semicolon,
+        .l_brace,
+        .less_than,
+        .r_bracket,
+        .l_bracket,
+        .greater_than,
+        .r_paren,
+        .l_paren,
+        .bang,
+        .minus,
+        .{ .integer_literal = 512 },
+        .illegal,
+        .{ .integer_literal = 79 },
+        .keyword_let,
+        .keyword_if,
+        .keyword_else,
+        .keyword_function,
+        .keyword_true,
+        .keyword_false,
+        .{ .identifier = "_foo_" },
+        .bang,
+        .bang,
+        .{ .identifier = "bar_baz__" },
+        .{ .string_literal = "string!%" },
+        .not_equal,
+        .equal,
+        .equal,
+        .assign,
+        .greater_than,
+        .assign,
+        .keyword_return,
+        .asterisk,
+        .assign,
+        .not_equal,
     };
     var lexer: Lexer = .init(str);
     var idx: usize = 0;
     var next_tok: Token = lexer.nextToken();
     state: switch (next_tok) {
-        .Eof => {},
+        .eof => {},
         else => {
             try expect(expected_tokens[idx].isEqual(next_tok));
             next_tok = lexer.nextToken();

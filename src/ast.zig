@@ -1,6 +1,6 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
-const TokenTag = @import("token.zig").TokenTag;
+const TokenTag = @import("token.zig").Tag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
@@ -378,3 +378,17 @@ pub const Call = struct {
         return s;
     }
 };
+
+// pub const ArrayLiteral = struct {
+//     elements: ArrayList(Expression),
+//
+//     pub fn print(self: ArrayLiteral) void {
+//         _ = self;
+//     }
+//
+//     pub fn toString(self: ArrayLiteral, allocator: Allocator) ToStringError![]u8 {
+//         _ = self;
+//         _ = allocator;
+//         return ToStringError;
+//     }
+// };

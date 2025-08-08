@@ -1,7 +1,8 @@
 const std = @import("std");
 const ast = @import("ast.zig");
-const Token = @import("token.zig").Token;
-const TokenTag = @import("token.zig").TokenTag;
+const tok = @import("token.zig");
+const Token = tok.Token;
+const TokenTag = tok.Tag;
 const Lexer = @import("Lexer.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -27,8 +28,8 @@ pub const ParserError = error{
 };
 
 lexer: *Lexer,
-current_token: Token = .Eof,
-peek_token: Token = .Eof,
+current_token: Token = .eof,
+peek_token: Token = .eof,
 allocator: Allocator,
 const Parser = @This();
 
@@ -48,12 +49,12 @@ const Precedence = enum {
 
     fn fromToken(token: Token) Precedence {
         return switch (token) {
-            .Equal, .NotEqual => .equals,
-            .LessThan, .GreaterThan => .less_greater,
-            .Plus, .Minus => .sum,
-            .Slash, .Asterisk => .product,
-            .LeftParen => .call,
-            // .LeftBracket => .index,
+            .equal, .not_equal => .equals,
+            .less_than, .greater_than => .less_greater,
+            .plus, .minus => .sum,
+            .slash, .asterisk => .product,
+            .l_paren => .call,
+            // .l_bracket => .index,
             else => .lowest,
         };
     }
@@ -74,7 +75,7 @@ pub fn init(lexer: *Lexer, allocator: Allocator) Parser {
 pub fn parse(self: *Parser) !ast.Program {
     var statements = ArrayList(ast.Statement).init(self.allocator);
     return sw: switch (self.current_token) {
-        .Eof => .{ .statements = statements },
+        .eof => .{ .statements = statements },
         else => {
             // TODO: check if `parseStatement` returns an error and switch over the `ParserError` set to handle each respective case.
             // In --release=fast mode the program will just fail and Zig won't return the error stack trace.
@@ -93,31 +94,31 @@ fn advance(self: *Parser) void {
 
 fn chompSemicolon(self: *Parser) void {
     switch (self.peek_token) {
-        .Semicolon => self.advance(),
+        .semicolon => self.advance(),
         else => {},
     }
 }
 
 fn chompComma(self: *Parser) void {
     switch (self.peek_token) {
-        .Comma => self.advance(),
+        .comma => self.advance(),
         else => {},
     }
 }
 
 fn parseStatement(self: *Parser) ParserError!ast.Statement {
     return switch (self.current_token) {
-        .Let => .{ .let_statement = try self.parseLetStatement() },
-        .Return => .{ .return_statement = try self.parseReturnStatement() },
-        .LeftBrace => .{ .block_statement = try self.parseBlockStatement() },
+        .keyword_let => .{ .let_statement = try self.parseLetStatement() },
+        .keyword_return => .{ .return_statement = try self.parseReturnStatement() },
+        .l_brace => .{ .block_statement = try self.parseBlockStatement() },
         else => .{ .expression_statement = try self.parseExpressionStatement() },
     };
 }
 
 fn parseLetStatement(self: *Parser) ParserError!ast.LetStatement {
-    try self.expectPeek(.Ident);
+    try self.expectPeek(.identifier);
     const name = try self.parseIdentifier();
-    try self.expectPeek(.Assign);
+    try self.expectPeek(.assign);
 
     // Move parser to beginning of expression
     self.advance();
@@ -150,7 +151,7 @@ fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
     self.advance();
     var statements = ArrayList(ast.Statement).init(self.allocator);
     return sw: switch (self.current_token) {
-        .RightBrace => {
+        .r_brace => {
             self.chompSemicolon();
             break :sw .{ .statements = statements };
         },
@@ -165,7 +166,7 @@ fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
 
 fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
     var left_expr = try self.parsePrefixToken(self.current_token);
-    while (self.peek_token != TokenTag.Semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
+    while (self.peek_token != TokenTag.semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
         const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
         left_expr_ptr.* = left_expr;
         left_expr = try self.parseInfixToken(left_expr_ptr);
@@ -175,15 +176,15 @@ fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expres
 
 fn parsePrefixToken(self: *Parser, token: Token) ParserError!ast.Expression {
     return switch (token) {
-        .Ident => .{ .identifier = try self.parseIdentifier() },
-        .Integer => .{ .integer = try self.parseInteger() },
-        .String => .{ .string = try self.parseString() },
-        .Bang, .Minus => .{ .prefix = try self.parsePrefixExpression() },
-        .True, .False => .{ .boolean = try self.parseBoolean() },
-        .LeftParen => try self.parseGroupedExpression(),
-        .If => .{ .if_expression = try self.parseIfExpression() },
-        .Function => .{ .function = try self.parseFunctionLiteral() },
-        // .LeftBracket => .{ .array = try self.parseArray() },
+        .identifier => .{ .identifier = try self.parseIdentifier() },
+        .integer_literal => .{ .integer = try self.parseInteger() },
+        .string_literal => .{ .string = try self.parseString() },
+        .bang, .minus => .{ .prefix = try self.parsePrefixExpression() },
+        .keyword_true, .keyword_false => .{ .boolean = try self.parseBoolean() },
+        .l_paren => try self.parseGroupedExpression(),
+        .keyword_if => .{ .if_expression = try self.parseIfExpression() },
+        .keyword_function => .{ .function = try self.parseFunctionLiteral() },
+        // .l_bracket => .{ .array = try self.parseArray() },
         else => ParserError.InvalidPrefix,
     };
 }
@@ -192,8 +193,8 @@ fn parseInfixToken(self: *Parser, left: *ast.Expression) ParserError!ast.Express
     const token = self.peek_token;
     self.advance();
     return switch (token) {
-        .LeftParen => .{ .call = try self.parseCallExpression(left) },
-        // .LeftBracket => .{ .index = try self.parseIndexExpression(left) },
+        .l_paren => .{ .call = try self.parseCallExpression(left) },
+        // .l_bracket => .{ .index = try self.parseIndexExpression(left) },
         else => .{ .infix = try self.parseInfixExpression(left) },
     };
 }
@@ -234,25 +235,25 @@ fn parseInfixExpression(self: *Parser, left: *ast.Expression) ParserError!ast.In
 fn parseGroupedExpression(self: *Parser) !ast.Expression {
     self.advance();
     const expr = try self.parseExpression(.lowest);
-    try self.expectPeek(.RightParen);
+    try self.expectPeek(.r_paren);
     return expr;
 }
 
 fn parseIfExpression(self: *Parser) ParserError!ast.IfExpression {
-    try self.expectPeek(.LeftParen);
+    try self.expectPeek(.l_paren);
     const condition = try self.parseExpression(.lowest);
     const condition_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
     condition_ptr.* = condition;
 
-    try self.expectPeek(.LeftBrace);
+    try self.expectPeek(.l_brace);
     const then_branch = try self.parseBlockStatement();
     const then_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
     then_ptr.* = then_branch;
 
     return sw: switch (self.peek_token) {
-        .Else => {
+        .keyword_else => {
             self.advance();
-            try self.expectPeek(.LeftBrace);
+            try self.expectPeek(.l_brace);
             const else_branch = try self.parseBlockStatement();
             const else_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
             else_ptr.* = else_branch;
@@ -270,17 +271,17 @@ fn parseIfExpression(self: *Parser) ParserError!ast.IfExpression {
 }
 
 fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
-    try self.expectPeek(.LeftParen);
+    try self.expectPeek(.l_paren);
     self.advance();
 
     // var parameters: ?ArrayList(ast.Identifier) = null;
     const parameters: ?ArrayList(ast.Identifier) = blk: {
-        if (self.current_token != .RightParen) {
+        if (self.current_token != .r_paren) {
             var idents = ArrayList(ast.Identifier).init(self.allocator);
             while (true) {
                 const ident = try self.parseIdentifier();
                 idents.append(ident) catch return ParserError.OutOfMemory;
-                if (self.peek_token == .Comma) {
+                if (self.peek_token == .comma) {
                     self.advance();
                     self.advance();
                 } else {
@@ -293,8 +294,8 @@ fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
     };
 
     // Parse the function body.
-    try self.expectPeek(.RightParen);
-    try self.expectPeek(.LeftBrace);
+    try self.expectPeek(.r_paren);
+    try self.expectPeek(.l_brace);
     const body = try self.parseBlockStatement();
     const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
     body_ptr.* = body;
@@ -308,7 +309,7 @@ fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.C
     self.advance(); // Consume left paren.
 
     // No arguments.
-    if (self.current_token == .RightParen) {
+    if (self.current_token == .r_paren) {
         return .{ .callee = callee };
     }
 
@@ -318,13 +319,13 @@ fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.C
         const expr = try self.parseExpression(.lowest);
         args.append(expr) catch return ParserError.InvalidExpressionList;
 
-        if (self.peek_token == .Comma) {
+        if (self.peek_token == .comma) {
             self.advance();
             self.advance();
             continue;
         }
 
-        if (self.peek_token == .RightParen) {
+        if (self.peek_token == .r_paren) {
             self.advance();
             break;
         } else {
@@ -337,29 +338,29 @@ fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.C
 // Expressions
 fn parseIdentifier(self: *Parser) ParserError!ast.Identifier {
     return switch (self.current_token) {
-        .Ident => |ident| .{ .value = ident },
+        .identifier => |ident| .{ .value = ident },
         else => ParserError.ExpectedIdentifier,
     };
 }
 
 fn parseInteger(self: *Parser) ParserError!ast.Integer {
     return switch (self.current_token) {
-        .Integer => |int| .{ .value = int },
+        .integer_literal => |int| .{ .value = int },
         else => ParserError.ExpectedInteger,
     };
 }
 
 fn parseBoolean(self: *Parser) ParserError!ast.Boolean {
     return switch (self.current_token) {
-        .True => .{ .value = true },
-        .False => .{ .value = false },
+        .keyword_true => .{ .value = true },
+        .keyword_false => .{ .value = false },
         else => ParserError.ExpectedBoolean,
     };
 }
 
 fn parseString(self: *Parser) ParserError!ast.String {
     return switch (self.current_token) {
-        .String => |str| .{ .value = str },
+        .string_literal => |str| .{ .value = str },
         else => ParserError.ExpectedStringLiteral,
     };
 }
@@ -393,8 +394,8 @@ pub fn print(self: Parser) void {
 test "Parser - init" {
     const src = "let x = \"foo\"";
     var lexer: Lexer = .init(src);
-    const current_token: Token = .Let;
-    const peek_token: Token = .{ .Ident = "x" };
+    const current_token: Token = .keyword_let;
+    const peek_token: Token = .{ .identifier = "x" };
     const expected: Parser = .{
         .lexer = &lexer,
         .current_token = current_token,
@@ -466,7 +467,7 @@ test "Parser - negative integer expressions" {
             .expression_statement => |e| e.expression.*,
             else => unreachable,
         };
-        try expect(expr.prefix.operator == TokenTag.Minus);
+        try expect(expr.prefix.operator == TokenTag.minus);
         try testing.expectEqualDeep(
             expr.prefix.right.integer,
             ast.Integer{ .value = int },

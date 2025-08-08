@@ -155,8 +155,8 @@ fn createFunctionLiteralObject(self: *Evaluator, func_literal: *const ast.Functi
 
 fn evalPrefixExpression(self: *Evaluator, operator: *const Token, right: *Object) !*Object {
     switch (operator.*) {
-        .Bang => return try evalBangOperatorExpression(right),
-        .Minus => return try self.evalMinusOperatorExpression(right),
+        .bang => return try evalBangOperatorExpression(right),
+        .minus => return try self.evalMinusOperatorExpression(right),
         else => {
             const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
             return try self.createError(
@@ -185,9 +185,9 @@ fn evalInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, 
         },
         .string => switch (right.*) {
             .string => switch (operator.*) {
-                .Equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
-                .NotEqual => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
-                .Plus => {
+                .equal => nativeBoolToBooleanObject(std.mem.eql(u8, left.string, right.string)),
+                .not_equal => nativeBoolToBooleanObject(!std.mem.eql(u8, left.string, right.string)),
+                .plus => {
                     // Concatenate strings
                     const concatenated_string: []const u8 = std.fmt.allocPrint(
                         self.allocator,
@@ -221,8 +221,8 @@ fn evalInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, 
             },
         },
         else => switch (operator.*) {
-            .Equal => nativeBoolToBooleanObject(std.meta.eql(left.*, right.*)),
-            .NotEqual => nativeBoolToBooleanObject(!std.meta.eql(left.*, right.*)),
+            .equal => nativeBoolToBooleanObject(std.meta.eql(left.*, right.*)),
+            .not_equal => nativeBoolToBooleanObject(!std.meta.eql(left.*, right.*)),
             else => {
                 const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
                 break :outer try self.createError(
@@ -240,17 +240,17 @@ fn evalInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, 
 
 fn evalIntegerInfixExpression(self: *Evaluator, operator: *const Token, left: *Object, right: *Object) !*Object {
     return switch (operator.*) {
-        .Plus => try self.createIntegerObject(left.integer + right.integer),
-        .Minus => try self.createIntegerObject(left.integer - right.integer),
-        .Asterisk => try self.createIntegerObject(left.integer * right.integer),
-        .Slash => {
+        .plus => try self.createIntegerObject(left.integer + right.integer),
+        .minus => try self.createIntegerObject(left.integer - right.integer),
+        .asterisk => try self.createIntegerObject(left.integer * right.integer),
+        .slash => {
             const division = std.math.divExact(i64, left.integer, right.integer) catch return EvaluatorError.FailedDivision;
             return try self.createIntegerObject(division);
         },
-        .GreaterThan => nativeBoolToBooleanObject(left.integer > right.integer),
-        .LessThan => nativeBoolToBooleanObject(left.integer < right.integer),
-        .Equal => nativeBoolToBooleanObject(left.integer == right.integer),
-        .NotEqual => nativeBoolToBooleanObject(left.integer != right.integer),
+        .greater_than => nativeBoolToBooleanObject(left.integer > right.integer),
+        .less_than => nativeBoolToBooleanObject(left.integer < right.integer),
+        .equal => nativeBoolToBooleanObject(left.integer == right.integer),
+        .not_equal => nativeBoolToBooleanObject(left.integer != right.integer),
         else => {
             const operator_string: []u8 = operator.toString(self.allocator) catch return EvaluatorError.OutOfMemory;
             return try self.createError(
