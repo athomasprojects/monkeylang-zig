@@ -783,6 +783,26 @@ test "function literals" {
     try testing.expect(4 == object.integer);
 }
 
+test "function literal, zero arguments" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src: []const u8 =
+        \\let foo = fn(){};
+        \\foo()
+    ;
+
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const object: *Object = try evaluator.evalProgram(&program, &env);
+    try testing.expectEqualStrings(@tagName(builtins.NULL), @tagName(object.*));
+    try testing.expectEqualStrings(try object.toString(allocator), "null");
+}
+
 test "call expressions" {
     var arena = ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();

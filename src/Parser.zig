@@ -274,7 +274,6 @@ fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
     try self.expectPeek(.l_paren);
     self.advance();
 
-    // var parameters: ?ArrayList(ast.Identifier) = null;
     const parameters: ?ArrayList(ast.Identifier) = blk: {
         if (self.current_token != .r_paren) {
             var idents = ArrayList(ast.Identifier).init(self.allocator);
@@ -285,6 +284,7 @@ fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
                     self.advance();
                     self.advance();
                 } else {
+                    try self.expectPeek(.r_paren);
                     break :blk idents;
                 }
             }
@@ -294,7 +294,6 @@ fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
     };
 
     // Parse the function body.
-    try self.expectPeek(.r_paren);
     try self.expectPeek(.l_brace);
     const body = try self.parseBlockStatement();
     const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
