@@ -45,6 +45,7 @@ pub fn start() !void {
 
                     const obj: *Object = try evaluator.evalProgram(&program, &env);
                     obj.print();
+                    stdout.print("\n", .{}) catch {};
 
                     // if (parser.parse()) |program| {
                     //     program.printStatements();

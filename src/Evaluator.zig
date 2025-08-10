@@ -17,6 +17,8 @@ pub const EvaluatorError = error{
     FailedDivision,
     InvalidCondition,
     OutOfMemory,
+    ArrayLiteral,
+    IndexExpression,
 };
 
 allocator: Allocator,
@@ -121,6 +123,31 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
                     break :outer try self.applyFunction(fn_val, evaled_args.items);
                 },
             }
+        },
+        // TODO: Implement array literal evaluation.
+        .array_literal => |array_literal| {
+            if (array_literal.elements) |elements| {
+                var evaled: *Object = &builtins.NULL;
+                var evaled_elems = ArrayList(*Object).init(self.allocator);
+                for (elements.items) |*elem| {
+                    evaled = try self.evalExpression(elem, scope);
+                    switch (evaled.*) {
+                        .error_ => break :outer evaled,
+                        else => evaled_elems.append(evaled) catch break :outer EvaluatorError.OutOfMemory,
+                    }
+                }
+                const array_literal_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.OutOfMemory;
+                array_literal_ptr.* = .{
+                    .array = .{ .elements = evaled_elems },
+                };
+                break :outer array_literal_ptr;
+            } else break :outer &builtins.EMPTY_ARRAY;
+        },
+        // TODO: Implement index experssion evaluation.
+        .index_expression => |index_expression| {
+            index_expression.print();
+            std.debug.print("\n", .{});
+            return EvaluatorError.IndexExpression;
         },
     };
 }

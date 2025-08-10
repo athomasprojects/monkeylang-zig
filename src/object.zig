@@ -16,6 +16,7 @@ pub const Object = union(enum) {
     function: Function,
     error_: Error,
     builtin: BuiltinFunction,
+    array: ArrayLiteral,
 
     pub fn print(self: Object) void {
         switch (self) {
@@ -27,8 +28,9 @@ pub const Object = union(enum) {
             .return_ => |return_value| return_value.value.print(),
             .error_ => |error_| error_.print(),
             .builtin => |builtin_fn| builtin_fn.print(),
+            .array => |array_literal| array_literal.print(),
         }
-        std.debug.print("\n", .{});
+        // std.debug.print("\n", .{});
     }
 
     pub fn toString(self: Object, allocator: std.mem.Allocator) ![]u8 {
@@ -53,6 +55,7 @@ pub const Object = union(enum) {
             .return_ => |return_value| return_value.value.toString(allocator),
             .error_ => |error_| try error_.toString(allocator),
             .builtin => |builtin_fn| try builtin_fn.toString(allocator),
+            .array => |array_literal| try array_literal.toString(allocator),
         };
     }
 
@@ -66,6 +69,7 @@ pub const Object = union(enum) {
             .return_ => unreachable,
             .error_ => "ERROR",
             .builtin => "BUILTIN",
+            .array => "ARRAY",
         };
     }
 };
@@ -140,5 +144,40 @@ pub const BuiltinFunction = struct {
             "BuiltinFunction#{s}",
             .{@tagName(self.tag)},
         );
+    }
+};
+
+pub const ArrayLiteral = struct {
+    elements: ?ArrayList(*Object),
+
+    pub const empty: ArrayLiteral = .{ .elements = null };
+
+    pub fn print(self: ArrayLiteral) void {
+        if (self.elements) |elements| {
+            std.debug.print("[", .{});
+            for (0..elements.items.len, elements.items) |idx, elem| {
+                elem.print();
+                if (idx < elements.items.len - 1) {
+                    std.debug.print(", ", .{});
+                }
+            }
+            std.debug.print("]", .{});
+        } else std.debug.print("[]", .{});
+    }
+
+    pub fn toString(self: ArrayLiteral, allocator: Allocator) ToStringError![]u8 {
+        var strings = ArrayList(u8).init(allocator);
+        defer strings.deinit();
+
+        if (self.elements) |elements| {
+            for (0..elements.items.len, elements.items) |idx, elem| {
+                // const expr = try elem.toString(allocator);
+                try strings.appendSlice(try elem.toString(allocator));
+                if (idx < elements.items.len - 1) {
+                    try strings.appendSlice(", ");
+                }
+            }
+            return std.fmt.allocPrint(allocator, "[{s}]", .{strings.items});
+        } else return std.fmt.allocPrint(allocator, "[]", .{});
     }
 };

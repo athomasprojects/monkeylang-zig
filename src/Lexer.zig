@@ -91,9 +91,11 @@ pub fn nextToken(self: *Lexer) Token {
                 break :state .semicolon;
             },
             '"' => self.readString(),
+            'A'...'Z', 'a'...'z', '_' => self.readIdentifier(),
+            '0'...'9' => self.readNumber(),
             else => {
-                if (isLetter(ch)) break :state self.readIdentifier();
-                if (ascii.isDigit(ch)) break :state self.readNumber();
+                // if (isLetter(ch)) break :state self.readIdentifier();
+                // if (ascii.isDigit(ch)) break :state self.readNumber();
                 self.advance();
                 break :state .illegal;
             },
@@ -139,7 +141,7 @@ fn takeWhile(self: *Lexer, condition: *const fn (u8) bool) []const u8 {
 }
 
 fn readIdentifier(self: *Lexer) Token {
-    const ident = self.takeWhile(isLetter);
+    const ident = self.takeWhile(isLetterOrUnderscore);
     self.pos += ident.len - 1;
     self.advance();
     return token.keywordToIdentifier(ident);
@@ -158,18 +160,22 @@ fn readString(self: *Lexer) Token {
 }
 
 fn readNumber(self: *Lexer) Token {
-    const literal = self.takeWhile(ascii.isDigit);
-    self.pos += literal.len - 1;
+    const number_literal = self.takeWhile(ascii.isDigit);
+    self.pos += number_literal.len - 1;
     self.advance();
-    if (std.fmt.parseInt(i64, literal, 10)) |int| {
+    if (std.fmt.parseInt(i64, number_literal, 10)) |int| {
         return .{ .integer_literal = int };
     } else |_| {
         return .illegal;
     }
 }
 
-fn isLetter(ch: u8) bool {
-    return ch == '_' or ascii.isAlphabetic(ch);
+fn isLetterOrUnderscore(ch: u8) bool {
+    // return ch == '_' or ascii.isAlphabetic(ch);
+    return switch (ch) {
+        'A'...'Z', 'a'...'z', '_' => true,
+        else => false,
+    };
 }
 
 /// Pretty printing (intended for print debugging).

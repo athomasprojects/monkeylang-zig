@@ -68,8 +68,8 @@ pub const Expression = union(enum) {
     if_expression: IfExpression,
     function: FunctionLiteral,
     call: Call,
-    // array: Array,
-    // index: Index,
+    array_literal: ArrayLiteral,
+    index_expression: IndexExpression,
 
     pub fn print(self: Expression) void {
         switch (self) {
@@ -82,8 +82,8 @@ pub const Expression = union(enum) {
             .if_expression => |if_expr| if_expr.print(),
             .function => |func| func.print(),
             .call => |call| call.print(),
-            // array => ,
-            // index => ,
+            .array_literal => |array| array.print(),
+            .index_expression => |index| index.print(),
         }
     }
 
@@ -98,8 +98,8 @@ pub const Expression = union(enum) {
             .if_expression => |if_expr| try if_expr.toString(allocator),
             .function => |func| try func.toString(allocator),
             .call => |call| try call.toString(allocator),
-            // array => ,
-            // index => ,
+            .array_literal => |array| try array.toString(allocator),
+            .index_expression => |index| try index.toString(allocator),
         };
     }
 };
@@ -279,7 +279,23 @@ pub const InfixExpression = struct {
 pub const IfExpression = struct {
     condition: *Expression,
     then_branch: *BlockStatement,
-    else_branch: ?*BlockStatement = null,
+    else_branch: ?*BlockStatement,
+
+    pub fn init(condition: *Expression, then_branch: *BlockStatement) IfExpression {
+        return .{
+            .condition = condition,
+            .then_branch = then_branch,
+            .else_branch = null,
+        };
+    }
+
+    pub fn initElseBranch(condition: *Expression, then_branch: *BlockStatement, else_branch: *BlockStatement) IfExpression {
+        return .{
+            .condition = condition,
+            .then_branch = then_branch,
+            .else_branch = else_branch,
+        };
+    }
 
     pub fn print(self: IfExpression) void {
         std.debug.print("if ", .{});
@@ -308,7 +324,7 @@ pub const IfExpression = struct {
 
 pub const FunctionLiteral = struct {
     body: *BlockStatement,
-    parameters: ?ArrayList(Identifier) = null,
+    parameters: ?ArrayList(Identifier),
 
     pub fn print(self: FunctionLiteral) void {
         std.debug.print("fn(", .{});
@@ -343,7 +359,21 @@ pub const FunctionLiteral = struct {
 
 pub const Call = struct {
     callee: *Expression,
-    args: ?ArrayList(Expression) = null,
+    args: ?ArrayList(Expression),
+
+    pub fn init(callee: *Expression, args: ArrayList(Expression)) Call {
+        return .{
+            .callee = callee,
+            .args = args,
+        };
+    }
+
+    pub fn empty(callee: *Expression) Call {
+        return .{
+            .callee = callee,
+            .args = null,
+        };
+    }
 
     pub fn print(self: Call) void {
         self.callee.print();
@@ -379,16 +409,55 @@ pub const Call = struct {
     }
 };
 
-// pub const ArrayLiteral = struct {
-//     elements: ArrayList(Expression),
-//
-//     pub fn print(self: ArrayLiteral) void {
-//         _ = self;
-//     }
-//
-//     pub fn toString(self: ArrayLiteral, allocator: Allocator) ToStringError![]u8 {
-//         _ = self;
-//         _ = allocator;
-//         return ToStringError;
-//     }
-// };
+pub const ArrayLiteral = struct {
+    elements: ?ArrayList(Expression),
+
+    pub const empty: ArrayLiteral = .{ .elements = null };
+
+    pub fn print(self: ArrayLiteral) void {
+        std.debug.print("[", .{});
+        if (self.elements) |elements| {
+            for (0..elements.items.len, elements.items) |idx, elem| {
+                elem.print();
+                if (idx < elements.items.len - 1) {
+                    std.debug.print(", ", .{});
+                }
+            }
+        }
+        std.debug.print("]", .{});
+    }
+
+    pub fn toString(self: ArrayLiteral, allocator: Allocator) ToStringError![]u8 {
+        var strings = ArrayList(u8).init(allocator);
+        defer strings.deinit();
+
+        if (self.elements) |elements| {
+            for (0..elements.items.len, elements.items) |idx, elem| {
+                const expr = try elem.toString(allocator);
+                try strings.appendSlice(expr);
+                if (idx < elements.items.len - 1) {
+                    try strings.appendSlice(", ");
+                }
+            }
+            return std.fmt.allocPrint(allocator, "[{s}]", .{strings.items});
+        } else return std.fmt.allocPrint(allocator, "[]", .{});
+    }
+};
+
+pub const IndexExpression = struct {
+    left: *Expression,
+    index: *Expression,
+
+    pub fn print(self: IndexExpression) void {
+        self.left.print();
+        std.debug.print("[", .{});
+        self.index.print();
+        std.debug.print("]", .{});
+    }
+
+    pub fn toString(self: IndexExpression, allocator: Allocator) ToStringError![]u8 {
+        const left = try self.left.toString(allocator);
+        const index = try self.index.toString(allocator);
+        return std.fmt.allocPrint(allocator, "{s}[{s}]", .{ left, index });
+    }
+};

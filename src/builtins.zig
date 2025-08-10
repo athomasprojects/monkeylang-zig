@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Object = @import("object.zig").Object;
+const obj = @import("object.zig");
+const Object = obj.Object;
 const EvaluatorError = @import("Evaluator.zig").EvaluatorError;
 
 const true_object: Object = .{ .boolean = true };
@@ -10,6 +11,7 @@ const null_object: Object = .null_;
 pub var TRUE: Object = true_object;
 pub var FALSE: Object = false_object;
 pub var NULL: Object = null_object;
+pub var EMPTY_ARRAY: Object = .{ .array = obj.ArrayLiteral.empty };
 
 pub var len_object: Object = .{
     .builtin = .{

@@ -7,7 +7,6 @@ pub const Tag = enum {
     identifier,
     string_literal,
     integer_literal,
-    // Operators
     assign,
     plus,
     minus,
@@ -16,7 +15,6 @@ pub const Tag = enum {
     bang,
     asterisk,
     slash,
-    // Delimiters
     l_brace,
     l_bracket,
     l_paren,
@@ -36,6 +34,52 @@ pub const Tag = enum {
     keyword_true,
     illegal,
     eof,
+
+    pub fn lexeme(self: Token) ?[]const u8 {
+        return switch (self) {
+            .identifier,
+            .integer_literal,
+            .string_literal,
+            .illegal,
+            .eof,
+            => null,
+            .assign => "=",
+            .plus => "+",
+            .minus => "-",
+            .equal => "==",
+            .not_equal => "!=",
+            .bang => "!",
+            .asterisk => "*",
+            .slash => "/",
+            .l_brace => "{{",
+            .l_bracket => "[",
+            .l_paren => "(",
+            .r_brace => "}}",
+            .r_bracket => "]",
+            .r_paren => ")",
+            .less_than => "<",
+            .greater_than => ">",
+            .comma => ",",
+            .semicolon => ";",
+            .keyword_else => "else",
+            .keyword_false => "false",
+            .keyword_function => "fn",
+            .keyword_if => "if",
+            .keyword_let => "let",
+            .keyword_return => "return",
+            .keyword_true => "true",
+        };
+    }
+
+    pub fn symbol(tag: Tag) []const u8 {
+        return tag.lexeme() orelse switch (tag) {
+            .identifier => "an identifier",
+            .integer_literal => "an integer literal",
+            .string_literal => "a string literal",
+            .illegal => "an invalid token",
+            .eof => "EOF",
+        };
+    }
 };
 
 pub const Token = union(Tag) {
