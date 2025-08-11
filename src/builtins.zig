@@ -27,15 +27,23 @@ pub var first_object: Object = .{
     },
 };
 
+pub var last_object: Object = .{
+    .builtin = .{
+        .func = last_fn,
+        .tag = .last,
+    },
+};
 
 const keywords = std.StaticStringMap(TagType).initComptime(.{
     .{ "len", .len },
     .{ "first", .first },
+    .{ "last", .last },
 });
 
 pub const TagType = enum {
     len,
     first,
+    last,
 };
 
 pub fn getFnObject(bytes: []const u8) ?*Object {
@@ -43,6 +51,7 @@ pub fn getFnObject(bytes: []const u8) ?*Object {
         return switch (tag) {
             .len => &len_object,
             .first => &first_object,
+            .last => &last_object,
         };
     }
     return null;
@@ -77,6 +86,27 @@ fn first_fn(allocator: Allocator, args: []*Object) !*Object {
         else => return try createError(
             allocator,
             "argument to `first` must be ARRAY: got {s}",
+            .{args[0].typeName()},
+        ),
+    }
+}
+
+fn last_fn(allocator: Allocator, args: []*Object) !*Object {
+    if (try expectArgNumber(allocator, 1, args)) |err_object| {
+        return err_object;
+    }
+
+    switch (args[0].*) {
+        .array => |array_literal| {
+            if (array_literal.elements) |elements| {
+                return elements.items[elements.items.len - 1];
+            } else {
+                return &NULL;
+            }
+        },
+        else => return try createError(
+            allocator,
+            "argument to `last` must be ARRAY: got {s}",
             .{args[0].typeName()},
         ),
     }

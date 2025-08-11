@@ -1093,3 +1093,36 @@ test "builtin first" {
         try testing.expectEqualStrings(expected, try object.toString(allocator));
     }
 }
+
+test "builtin last" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src = [_][]const u8{
+        "last([])",
+        "last([\"foo\", \"last\"])",
+        "let a = [\"foo\", fn(x){ x + 1 }, \"bar\", 5 - 3 * 2, \"baz\"]; last(a)",
+        "let b = [1,2,3,4]; last(b)",
+        "let foo = fn() { true }; let c = [false, foo]; last(c)() == true",
+    };
+
+    const expected_array_literals = [_][]const u8{
+        "null",
+        "\"last\"",
+        "\"baz\"",
+        "4",
+        "true",
+    };
+
+    for (src, expected_array_literals) |input, expected| {
+        var lexer: Lexer = .init(input);
+        var parser: Parser = .init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
+        const object: *Object = try evaluator.evalProgram(&program, &env);
+        try testing.expectEqualStrings(expected, try object.toString(allocator));
+    }
+}
