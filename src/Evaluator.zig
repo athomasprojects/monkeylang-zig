@@ -1060,3 +1060,36 @@ test "index expressions" {
         try testing.expectEqualStrings(expected, try object.toString(allocator));
     }
 }
+
+test "builtin first" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src = [_][]const u8{
+        "first([])",
+        "first([\"foo\", \"bar\"])",
+        "let a = [\"first\", fn(){}, 5 - 3, \"foo\", \"bar\"]; first(a)",
+        "let b = [1,2,3,4]; first(b)",
+        "let foo = fn() { true }; let c = [foo]; first(c)() == true",
+    };
+
+    const expected_array_literals = [_][]const u8{
+        "null",
+        "\"foo\"",
+        "\"first\"",
+        "1",
+        "true",
+    };
+
+    for (src, expected_array_literals) |input, expected| {
+        var lexer: Lexer = .init(input);
+        var parser: Parser = .init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
+        const object: *Object = try evaluator.evalProgram(&program, &env);
+        try testing.expectEqualStrings(expected, try object.toString(allocator));
+    }
+}

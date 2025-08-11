@@ -155,22 +155,6 @@ fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
 
 fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
     var left_expr = try self.parsePrefixToken(self.current_token);
-
-    // NOTE: This while loop condition,
-    //
-    // `while (self.peek_token != TokenTag.semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) { ... }`
-    //
-    // was causing the parser to fail for inputs such as:
-    //
-    // `>> let double = fn(x) { x * 2 }; [1, double(2), 3*3];`
-    //
-    // My best guess is that checking the next token for a semicolon instead of
-    // the current token would cause us to miss the semicolon after parsing the
-    // left expression, since it would be the "current token" at that point. In
-    // the case where we encounter a '[' after a semicolon, since '[' has the
-    // highest precedence, the parser interpreted the '[' token as being part
-    // of an index expression.
-
     while (self.current_token != TokenTag.semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
         const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
         left_expr_ptr.* = left_expr;

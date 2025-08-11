@@ -20,18 +20,29 @@ pub var len_object: Object = .{
     },
 };
 
+pub var first_object: Object = .{
+    .builtin = .{
+        .func = first_fn,
+        .tag = .first,
+    },
+};
+
+
 const keywords = std.StaticStringMap(TagType).initComptime(.{
     .{ "len", .len },
+    .{ "first", .first },
 });
 
 pub const TagType = enum {
     len,
+    first,
 };
 
 pub fn getFnObject(bytes: []const u8) ?*Object {
     if (keywords.get(bytes)) |tag| {
         return switch (tag) {
             .len => &len_object,
+            .first => &first_object,
         };
     }
     return null;
@@ -51,6 +62,21 @@ fn len_fn(allocator: Allocator, args: []*Object) !*Object {
         else => return try createError(
             allocator,
             "argument to `len` not supported: got {s}",
+            .{args[0].typeName()},
+        ),
+    }
+}
+
+fn first_fn(allocator: Allocator, args: []*Object) !*Object {
+    if (try expectArgNumber(allocator, 1, args)) |err_object| {
+        return err_object;
+    }
+
+    switch (args[0].*) {
+        .array => |array_literal| return if (array_literal.elements) |elements| elements.items[0] else &NULL,
+        else => return try createError(
+            allocator,
+            "argument to `first` must be ARRAY: got {s}",
             .{args[0].typeName()},
         ),
     }

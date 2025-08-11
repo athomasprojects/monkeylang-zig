@@ -30,7 +30,6 @@ pub const Object = union(enum) {
             .builtin => |builtin_fn| builtin_fn.print(),
             .array => |array_literal| array_literal.print(),
         }
-        // std.debug.print("\n", .{});
     }
 
     pub fn toString(self: Object, allocator: std.mem.Allocator) ![]u8 {
