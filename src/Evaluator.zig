@@ -1126,3 +1126,42 @@ test "builtin last" {
         try testing.expectEqualStrings(expected, try object.toString(allocator));
     }
 }
+
+test "builtin rest" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src = [_][]const u8{
+        "rest([])",
+        "rest([\"foo\", \"rest\"])",
+        "let a = [\"foo\", 1, \"bar\", 5 - 3 * 2, \"baz\"]; rest(a)",
+        "let b = [1,2,3,4]; rest(b)",
+        "let c = [1,2,3,4]; rest(rest(c))",
+        "let d = [1,2,3,4]; rest(rest(rest(d)))",
+        "let e = [1,2,3,4]; rest(rest(rest(rest(e))))",
+        "let f = [1,2,3,4]; rest(rest(rest(rest(rest(f)))))",
+    };
+
+    const expected_array_literals = [_][]const u8{
+        "null",
+        "[\"rest\"]",
+        "[1, \"bar\", -1, \"baz\"]",
+        "[2, 3, 4]",
+        "[3, 4]",
+        "[4]",
+        "[]",
+        "null",
+    };
+
+    for (src, expected_array_literals) |input, expected| {
+        var lexer: Lexer = .init(input);
+        var parser: Parser = .init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
+        const object: *Object = try evaluator.evalProgram(&program, &env);
+        try testing.expectEqualStrings(expected, try object.toString(allocator));
+    }
+}

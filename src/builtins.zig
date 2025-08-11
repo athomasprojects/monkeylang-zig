@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const obj = @import("object.zig");
 const Object = obj.Object;
 const EvaluatorError = @import("Evaluator.zig").EvaluatorError;
@@ -34,16 +35,25 @@ pub var last_object: Object = .{
     },
 };
 
+pub var rest_object: Object = .{
+    .builtin = .{
+        .func = rest_fn,
+        .tag = .rest,
+    },
+};
+
 const keywords = std.StaticStringMap(TagType).initComptime(.{
     .{ "len", .len },
     .{ "first", .first },
     .{ "last", .last },
+    .{ "rest", .rest },
 });
 
 pub const TagType = enum {
     len,
     first,
     last,
+    rest,
 };
 
 pub fn getFnObject(bytes: []const u8) ?*Object {
@@ -52,6 +62,7 @@ pub fn getFnObject(bytes: []const u8) ?*Object {
             .len => &len_object,
             .first => &first_object,
             .last => &last_object,
+            .rest => &rest_object,
         };
     }
     return null;
@@ -107,6 +118,36 @@ fn last_fn(allocator: Allocator, args: []*Object) !*Object {
         else => return try createError(
             allocator,
             "argument to `last` must be ARRAY: got {s}",
+            .{args[0].typeName()},
+        ),
+    }
+}
+
+fn rest_fn(allocator: Allocator, args: []*Object) !*Object {
+    if (try expectArgNumber(allocator, 1, args)) |err_object| {
+        return err_object;
+    }
+
+    switch (args[0].*) {
+        .array => |array_literal| {
+            if (array_literal.elements) |elements| {
+                const array_ptr: *Object = allocator.create(Object) catch return EvaluatorError.OutOfMemory;
+                array_ptr.* = state: switch (elements.items.len) {
+                    1 => .{ .array = .empty },
+                    else => {
+                        var remaining_elements: ArrayList(*Object) = .init(allocator);
+                        remaining_elements.insertSlice(0, elements.items[1..elements.items.len]) catch return EvaluatorError.OutOfMemory;
+                        break :state .{ .array = .{ .elements = remaining_elements } };
+                    },
+                };
+                return array_ptr;
+            } else {
+                return &NULL;
+            }
+        },
+        else => return try createError(
+            allocator,
+            "argument to `rest` must be ARRAY: got {s}",
             .{args[0].typeName()},
         ),
     }
