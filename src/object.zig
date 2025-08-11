@@ -109,8 +109,7 @@ pub const Function = struct {
             }
         }
         const body = try self.body.toString(allocator);
-        const s = try std.fmt.allocPrint(allocator, "fn({s}) {s}", .{ list.items, body });
-        return s;
+        return try std.fmt.allocPrint(allocator, "fn({s}) {s}", .{ list.items, body });
     }
 };
 
@@ -153,16 +152,14 @@ pub const ArrayLiteral = struct {
     pub const empty: ArrayLiteral = .{ .elements = null };
 
     pub fn print(self: ArrayLiteral) void {
+        std.debug.print("[", .{});
         if (self.elements) |elements| {
-            std.debug.print("[", .{});
             for (0..elements.items.len, elements.items) |idx, elem| {
                 elem.print();
-                if (idx < elements.items.len - 1) {
-                    std.debug.print(", ", .{});
-                }
+                if (idx < elements.items.len - 1) std.debug.print(", ", .{});
             }
-            std.debug.print("]", .{});
-        } else std.debug.print("[]", .{});
+        }
+        std.debug.print("]", .{});
     }
 
     pub fn toString(self: ArrayLiteral, allocator: Allocator) ToStringError![]u8 {
@@ -171,11 +168,9 @@ pub const ArrayLiteral = struct {
 
         if (self.elements) |elements| {
             for (0..elements.items.len, elements.items) |idx, elem| {
-                // const expr = try elem.toString(allocator);
-                try strings.appendSlice(try elem.toString(allocator));
-                if (idx < elements.items.len - 1) {
-                    try strings.appendSlice(", ");
-                }
+                const expr = try elem.toString(allocator);
+                try strings.appendSlice(expr);
+                if (idx < elements.items.len - 1) try strings.appendSlice(", ");
             }
             return std.fmt.allocPrint(allocator, "[{s}]", .{strings.items});
         } else return std.fmt.allocPrint(allocator, "[]", .{});

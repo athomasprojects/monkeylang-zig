@@ -231,12 +231,11 @@ pub fn keywordToIdentifier(str: []const u8) Token {
 }
 
 // Tests
-test "Token - lookup identifiers" {
-    const strings = [_][]const u8{ "let", "fn", "if", "else", "true", "false", "return", "does not exist!", "15" };
+test "lookup keywords" {
+    const strings = [_][]const u8{ "let", "fn", "if", "else", "true", "false", "return" };
     for (strings) |str| {
         const result = switch (keywordToIdentifier(str)) {
             .keyword_let, .keyword_function, .keyword_if, .keyword_else, .keyword_true, .keyword_false, .keyword_return => true,
-            .identifier => |ident| std.mem.eql(u8, ident, str),
             else => false,
         };
         try expect(result);

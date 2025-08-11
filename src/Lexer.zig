@@ -94,8 +94,6 @@ pub fn nextToken(self: *Lexer) Token {
             'A'...'Z', 'a'...'z', '_' => self.readIdentifier(),
             '0'...'9' => self.readNumber(),
             else => {
-                // if (isLetter(ch)) break :state self.readIdentifier();
-                // if (ascii.isDigit(ch)) break :state self.readNumber();
                 self.advance();
                 break :state .illegal;
             },

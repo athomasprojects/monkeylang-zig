@@ -43,16 +43,16 @@ pub fn evalProgram(self: *Evaluator, program: *ast.Program, scope: *Environment)
 }
 
 fn evalStatement(self: *Evaluator, statement: *const ast.Statement, scope: *Environment) !*Object {
-    switch (statement.*) {
-        .expression_statement => |expression_statement| return try self.evalExpression(expression_statement.expression, scope),
+    return outer: switch (statement.*) {
+        .expression_statement => |expression_statement| try self.evalExpression(expression_statement.expression, scope),
         .let_statement => |let_statement| {
-            const value = try self.evalExpression(let_statement.value, scope);
-            switch (value.*) {
-                .error_ => return value,
+            const evaluated_expression = try self.evalExpression(let_statement.value, scope);
+            switch (evaluated_expression.*) {
+                .error_ => break :outer evaluated_expression,
                 else => {
-                    // Bind evaluated expression to identifier in the current scope.
-                    scope.bind(let_statement.name.value, value) catch return EvaluatorError.OutOfMemory;
-                    return &builtins.NULL;
+                    // Bind the evaluated expression to the identifier in the current scope.
+                    scope.bind(let_statement.name.value, evaluated_expression) catch return EvaluatorError.OutOfMemory;
+                    break :outer &builtins.NULL;
                 },
             }
         },
@@ -61,19 +61,19 @@ fn evalStatement(self: *Evaluator, statement: *const ast.Statement, scope: *Envi
             for (block_statement.statements.items) |*stmt| {
                 result = try self.evalStatement(stmt, scope);
                 switch (result.*) {
-                    .return_, .error_ => break,
+                    .return_, .error_ => break :outer result,
                     else => {},
                 }
             }
-            return result;
+            break :outer result;
         },
         .return_statement => |return_statement| {
             const value: *Object = try self.evalExpression(return_statement.value, scope);
             const object_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.OutOfMemory;
             object_ptr.* = .{ .return_ = .{ .value = value } };
-            return object_ptr;
+            break :outer object_ptr;
         },
-    }
+    };
 }
 
 fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) !*Object {
@@ -145,9 +145,17 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
         },
         // TODO: Implement index experssion evaluation.
         .index_expression => |index_expression| {
-            index_expression.print();
-            std.debug.print("\n", .{});
-            return EvaluatorError.IndexExpression;
+            const left: *Object = try self.evalExpression(index_expression.left, scope);
+            switch (left.*) {
+                .error_ => break :outer left,
+                else => {},
+            }
+            const index: *Object = try self.evalExpression(index_expression.index, scope);
+            switch (index.*) {
+                .error_ => break :outer index,
+                else => {},
+            }
+            break :outer try self.evalIndexExpression(left, index);
         },
     };
 }
@@ -342,6 +350,23 @@ fn evalIdentifier(self: *Evaluator, identifier: *const ast.Identifier, scope: *E
         "identifier not found: {s}",
         .{identifier.value},
     );
+}
+
+fn evalIndexExpression(self: *Evaluator, left: *Object, index: *Object) !*Object {
+    return outer: switch (left.*) {
+        .array => |array_literal| switch (index.*) {
+            .integer => |integer_index| {
+                if (array_literal.elements) |elements| {
+                    if (integer_index < 0) break :outer &builtins.NULL;
+                    const idx: usize = @intCast(integer_index);
+                    if (idx > elements.items.len - 1) break :outer &builtins.NULL;
+                    break :outer elements.items[idx];
+                } else break :outer &builtins.NULL;
+            },
+            else => break :outer try self.createError("index operator not supported: {s}", .{index.typeName()}),
+        },
+        else => try self.createError("index operator not supported: {s}", .{left.typeName()}),
+    };
 }
 
 fn applyFunction(self: *Evaluator, func: *Object, args: []*Object) EvaluatorError!*Object {
@@ -925,16 +950,106 @@ test "builtin len unsupported arguments and wrong number of arguments" {
     const allocator = arena.allocator();
 
     const src = [_][]const u8{
-        "len(1)",
         "len(\"one\", \"two\")",
+        "len(1)",
+        "len([1,fn(){}, \"foo\"])",
+        "len(fn(){})",
+        "let foo = fn(x) { x * 2 }; len(foo)",
+        "let bar = fn(x) { x / 2 - x }; len(bar(2))",
+        "len(true)",
+        "len(fn(){}())",
     };
 
     const lengths = [_][]const u8{
-        "argument to `len` not supported: got INTEGER",
         "incorrect number of arguments: expected 1, got 2",
+        "argument to `len` not supported: got INTEGER",
+        "argument to `len` not supported: got ARRAY",
+        "argument to `len` not supported: got FUNCTION",
+        "argument to `len` not supported: got FUNCTION",
+        "argument to `len` not supported: got INTEGER",
+        "argument to `len` not supported: got BOOLEAN",
+        "argument to `len` not supported: got NULL",
     };
 
     for (src, lengths) |input, expected| {
+        var lexer: Lexer = .init(input);
+        var parser: Parser = .init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
+        const object: *Object = try evaluator.evalProgram(&program, &env);
+        try testing.expectEqualStrings(expected, try object.toString(allocator));
+    }
+}
+
+test "array literals" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src = [_][]const u8{
+        "[]",
+        "[1, 2, 3]",
+        "[1, 2 * 2, 3 + 3]",
+        "let double = fn(x) { x * 2 }; [1, double(2), 3 * 3, 4 - 3]",
+        "[fn(x,y,z){ if (x > y) { x } else { z }}(1,2,3), \"foo\", 5 + (4*2) > 3, -10]",
+    };
+    const expected_array_literals = [_][]const u8{
+        "[]",
+        "[1, 2, 3]",
+        "[1, 4, 6]",
+        "[1, 4, 9, 1]",
+        "[3, \"foo\", true, -10]",
+    };
+
+    for (src, expected_array_literals) |input, expected| {
+        var lexer: Lexer = .init(input);
+        var parser: Parser = .init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
+        const object: *Object = try evaluator.evalProgram(&program, &env);
+        try testing.expectEqualStrings(expected, try object.toString(allocator));
+    }
+}
+
+test "index expressions" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src = [_][]const u8{
+        "[][0]",
+        "[1, 2, 3][-458]",
+        "[1, 2, 3][0]",
+        "[1, 2, 3][1]",
+        "[1, 2, 3][2]",
+        "[1, 2, 3][3]",
+        "let i = 0; [1][i]",
+        "[1, 2, 5][1+1]",
+        "let myArray = [fn(){}, 2, \"foo\"]; myArray[2];",
+        "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2]",
+        "let double = fn(x) { x * 2 }; let i = 1; [1, double(2), 3 * 3, 4 - 3, 8/2][i]",
+        "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+    };
+    const expected_array_literals = [_][]const u8{
+        "null",
+        "null",
+        "1",
+        "2",
+        "3",
+        "null",
+        "1",
+        "5",
+        "\"foo\"",
+        "6",
+        "4",
+        "2",
+    };
+
+    for (src, expected_array_literals) |input, expected| {
         var lexer: Lexer = .init(input);
         var parser: Parser = .init(&lexer, allocator);
         var program = try parser.parse();

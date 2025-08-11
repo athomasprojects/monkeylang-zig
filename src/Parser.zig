@@ -97,13 +97,6 @@ fn chompSemicolon(self: *Parser) void {
     }
 }
 
-fn chompComma(self: *Parser) void {
-    switch (self.peek_token) {
-        .comma => self.advance(),
-        else => {},
-    }
-}
-
 fn parseStatement(self: *Parser) ParserError!ast.Statement {
     return switch (self.current_token) {
         .keyword_let => .{ .let_statement = try self.parseLetStatement() },
@@ -162,7 +155,23 @@ fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
 
 fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
     var left_expr = try self.parsePrefixToken(self.current_token);
-    while (self.peek_token != TokenTag.semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
+
+    // NOTE: This while loop condition,
+    //
+    // `while (self.peek_token != TokenTag.semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) { ... }`
+    //
+    // was causing the parser to fail for inputs such as:
+    //
+    // `>> let double = fn(x) { x * 2 }; [1, double(2), 3*3];`
+    //
+    // My best guess is that checking the next token for a semicolon instead of
+    // the current token would cause us to miss the semicolon after parsing the
+    // left expression, since it would be the "current token" at that point. In
+    // the case where we encounter a '[' after a semicolon, since '[' has the
+    // highest precedence, the parser interpreted the '[' token as being part
+    // of an index expression.
+
+    while (self.current_token != TokenTag.semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
         const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
         left_expr_ptr.* = left_expr;
         left_expr = try self.parseInfixToken(left_expr_ptr);
@@ -191,9 +200,11 @@ fn parsePrefixToken(self: *Parser, token: Token) ParserError!ast.Expression {
 }
 
 fn parseInfixToken(self: *Parser, left: *ast.Expression) ParserError!ast.Expression {
-    const token = self.peek_token;
+    // const token = self.peek_token;
+    // self.advance();
+    // return switch (token) {
     self.advance();
-    return switch (token) {
+    return switch (self.current_token) {
         .l_paren => .{ .call = try self.parseCallExpression(left) },
         .l_bracket => .{ .index_expression = try self.parseIndexExpression(left) },
         else => .{ .infix = try self.parseInfixExpression(left) },
@@ -349,10 +360,9 @@ fn parseArrayLiteral(self: *Parser) ParserError!ast.ArrayLiteral {
         },
         .r_bracket => {
             self.advance();
-            self.chompSemicolon();
             break :state .{ .elements = elements };
         },
-        else => break :state ParserError.InvalidExpressionList,
+        else => ParserError.InvalidExpressionList,
     };
 }
 
@@ -633,7 +643,7 @@ test "block statement" {
     const src: []const u8 =
         \\{ foo;
         \\ let boo = "boo! this is a spooky string"; 123 * "foo" + "bar"
-        \\ * 
+        \\ *
         \\    (-_baz / (5 * 3));
         \\ return true * false;
         \\  };
@@ -706,8 +716,6 @@ test "function literal" {
         \\}
         \\return foo * bar / baz;
         \\}
-        \\
-        \\
         \\
     ;
     const expected =
