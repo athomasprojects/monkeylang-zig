@@ -25,6 +25,7 @@ pub const Tag = enum {
     greater_than,
     comma,
     semicolon,
+    colon,
     keyword_else,
     keyword_false,
     keyword_function,
@@ -61,6 +62,7 @@ pub const Tag = enum {
             .greater_than => ">",
             .comma => ",",
             .semicolon => ";",
+            .colon => ":",
             .keyword_else => "else",
             .keyword_false => "false",
             .keyword_function => "fn",
@@ -106,6 +108,7 @@ pub const Token = union(Tag) {
     greater_than,
     comma,
     semicolon,
+    colon,
     keyword_else,
     keyword_false,
     keyword_function,
@@ -139,6 +142,7 @@ pub const Token = union(Tag) {
             .greater_than => std.debug.print(">", .{}),
             .comma => std.debug.print(",", .{}),
             .semicolon => std.debug.print(";", .{}),
+            .colon => std.debug.print(":", .{}),
             .keyword_else => std.debug.print("else", .{}),
             .keyword_false => std.debug.print("false", .{}),
             .keyword_function => std.debug.print("fn", .{}),
@@ -173,6 +177,7 @@ pub const Token = union(Tag) {
             .greater_than => try std.fmt.allocPrint(allocator, ">", .{}),
             .comma => try std.fmt.allocPrint(allocator, ",", .{}),
             .semicolon => try std.fmt.allocPrint(allocator, ";", .{}),
+            .colon => try std.fmt.allocPrint(allocator, ":", .{}),
             .keyword_else => try std.fmt.allocPrint(allocator, "else", .{}),
             .keyword_false => try std.fmt.allocPrint(allocator, "false", .{}),
             .keyword_function => try std.fmt.allocPrint(allocator, "fn", .{}),
@@ -184,7 +189,7 @@ pub const Token = union(Tag) {
         };
     }
 
-    pub fn isEqual(self: Token, other: Token) bool {
+    pub fn eql(self: Token, other: Token) bool {
         switch (self) {
             .identifier, .string_literal => |actual_slice| {
                 switch (other) {

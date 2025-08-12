@@ -70,6 +70,7 @@ pub const Expression = union(enum) {
     call: Call,
     array_literal: ArrayLiteral,
     index_expression: IndexExpression,
+    hash_literal: HashLiteral,
 
     pub fn print(self: Expression) void {
         switch (self) {
@@ -84,6 +85,7 @@ pub const Expression = union(enum) {
             .call => |call| call.print(),
             .array_literal => |array| array.print(),
             .index_expression => |index| index.print(),
+            .hash_literal => |hash_literal| hash_literal.print(),
         }
     }
 
@@ -100,6 +102,7 @@ pub const Expression = union(enum) {
             .call => |call| try call.toString(allocator),
             .array_literal => |array| try array.toString(allocator),
             .index_expression => |index| try index.toString(allocator),
+            .hash_literal => |hash_literal| try hash_literal.toString(allocator),
         };
     }
 };
@@ -329,11 +332,10 @@ pub const FunctionLiteral = struct {
     pub fn print(self: FunctionLiteral) void {
         std.debug.print("fn(", .{});
         if (self.parameters) |parameters| {
+            const max = parameters.items.len - 1;
             for (0..parameters.items.len, parameters.items) |idx, ident| {
                 ident.print();
-                if (idx < parameters.items.len - 1) {
-                    std.debug.print(", ", .{});
-                }
+                if (idx < max) std.debug.print(", ", .{});
             }
         }
         std.debug.print(") ", .{});
@@ -344,11 +346,10 @@ pub const FunctionLiteral = struct {
         var list = ArrayList(u8).init(allocator);
         defer list.deinit();
         if (self.parameters) |parameters| {
+            const max = parameters.items.len - 1;
             for (0..parameters.items.len, parameters.items) |idx, ident| {
                 try list.appendSlice(ident.value);
-                if (idx < parameters.items.len - 1) {
-                    try list.appendSlice(", ");
-                }
+                if (idx < max) try list.appendSlice(", ");
             }
         }
         const body = try self.body.toString(allocator);
@@ -379,11 +380,10 @@ pub const Call = struct {
         self.callee.print();
         std.debug.print("(", .{});
         if (self.args) |args| {
+            const max = args.items.len - 1;
             for (0..args.items.len, args.items) |idx, arg| {
                 arg.print();
-                if (idx < args.items.len - 1) {
-                    std.debug.print(", ", .{});
-                }
+                if (idx < max) std.debug.print(", ", .{});
             }
         }
         std.debug.print(")", .{});
@@ -396,12 +396,11 @@ pub const Call = struct {
         defer list.deinit();
 
         if (self.args) |args| {
+            const max = args.items.len - 1;
             for (0..args.items.len, args.items) |idx, arg| {
                 const expr = try arg.toString(allocator);
                 try list.appendSlice(expr);
-                if (idx < args.items.len - 1) {
-                    try list.appendSlice(", ");
-                }
+                if (idx < max) try list.appendSlice(", ");
             }
         }
         const s = try std.fmt.allocPrint(allocator, "{s}({s})", .{ callee, list.items });
@@ -417,11 +416,10 @@ pub const ArrayLiteral = struct {
     pub fn print(self: ArrayLiteral) void {
         std.debug.print("[", .{});
         if (self.elements) |elements| {
+            const max = elements.items.len - 1;
             for (0..elements.items.len, elements.items) |idx, elem| {
                 elem.print();
-                if (idx < elements.items.len - 1) {
-                    std.debug.print(", ", .{});
-                }
+                if (idx < max) std.debug.print(", ", .{});
             }
         }
         std.debug.print("]", .{});
@@ -432,12 +430,11 @@ pub const ArrayLiteral = struct {
         defer strings.deinit();
 
         if (self.elements) |elements| {
+            const max = elements.items.len - 1;
             for (0..elements.items.len, elements.items) |idx, elem| {
                 const expr = try elem.toString(allocator);
                 try strings.appendSlice(expr);
-                if (idx < elements.items.len - 1) {
-                    try strings.appendSlice(", ");
-                }
+                if (idx < max) try strings.appendSlice(", ");
             }
             return std.fmt.allocPrint(allocator, "[{s}]", .{strings.items});
         } else return std.fmt.allocPrint(allocator, "[]", .{});
@@ -459,5 +456,67 @@ pub const IndexExpression = struct {
         const left = try self.left.toString(allocator);
         const index = try self.index.toString(allocator);
         return std.fmt.allocPrint(allocator, "{s}[{s}]", .{ left, index });
+    }
+};
+
+pub const HashLiteral = struct {
+    entries: ?ArrayList(Entry),
+
+    pub const empty: HashLiteral = .{ .entries = null };
+
+    pub const Entry = struct {
+        key: Expression,
+        value: Expression,
+
+        pub fn print(self: Entry) void {
+            self.key.print();
+            std.debug.print(": ", .{});
+            self.value.print();
+        }
+
+        pub fn toString(self: Entry, allocator: Allocator) ToStringError![]u8 {
+            const key = try self.key.toString(allocator);
+            const value = try self.value.toString(allocator);
+            return std.fmt.allocPrint(
+                allocator,
+                "{s}: {s}",
+                .{ key, value },
+            );
+        }
+    };
+
+    pub fn init(entries: ArrayList(Entry)) HashLiteral {
+        return .{ .entries = entries };
+    }
+
+    pub fn print(self: HashLiteral) void {
+        std.debug.print("{{", .{});
+        if (self.entries) |entries| {
+            const max = entries.items.len - 1;
+            for (0..entries.items.len, entries.items) |idx, entry| {
+                entry.print();
+                if (idx < max) std.debug.print(", ", .{});
+            }
+        }
+        std.debug.print("}}", .{});
+    }
+
+    pub fn toString(self: HashLiteral, allocator: Allocator) ToStringError![]u8 {
+        var strings = ArrayList(u8).init(allocator);
+        defer strings.deinit();
+        if (self.entries) |entries| {
+            const max = entries.items.len - 1;
+            for (0..entries.items.len, entries.items) |idx, entry| {
+                const s = try entry.toString(allocator);
+                try strings.appendSlice(s);
+                if (idx < max) try strings.appendSlice(", ");
+            }
+            return std.fmt.allocPrint(
+                allocator,
+                "{{{s}}}",
+                .{strings.items},
+            );
+        }
+        return std.fmt.allocPrint(allocator, "{{}}", .{});
     }
 };

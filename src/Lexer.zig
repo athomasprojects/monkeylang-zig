@@ -90,6 +90,10 @@ pub fn nextToken(self: *Lexer) Token {
                 self.advance();
                 break :state .semicolon;
             },
+            ':' => {
+                self.advance();
+                break :state .colon;
+            },
             '"' => self.readString(),
             'A'...'Z', 'a'...'z', '_' => self.readIdentifier(),
             '0'...'9' => self.readNumber(),
@@ -252,7 +256,7 @@ test "Lexer - next token" {
         \\  _foo_! !bar_baz__
         \\"string!%"
         \\ != == === >=
-        \\return * =!=
+        \\return * =!=::
     ;
     const expected_tokens = [_]Token{
         .assign,
@@ -294,6 +298,8 @@ test "Lexer - next token" {
         .asterisk,
         .assign,
         .not_equal,
+        .colon,
+        .colon,
     };
     var lexer: Lexer = .init(str);
     var idx: usize = 0;
@@ -301,7 +307,7 @@ test "Lexer - next token" {
     state: switch (next_tok) {
         .eof => {},
         else => {
-            try expect(expected_tokens[idx].isEqual(next_tok));
+            try expect(expected_tokens[idx].eql(next_tok));
             next_tok = lexer.nextToken();
             idx += 1;
             continue :state next_tok;

@@ -17,8 +17,7 @@ pub const EvaluatorError = error{
     FailedDivision,
     InvalidCondition,
     OutOfMemory,
-    ArrayLiteral,
-    IndexExpression,
+    HashLiteral,
 };
 
 allocator: Allocator,
@@ -157,6 +156,8 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
             }
             break :outer try self.evalIndexExpression(left, index);
         },
+        // TODO: Implement hash literal evaluation.
+        .hash_literal => EvaluatorError.HashLiteral,
     };
 }
 
