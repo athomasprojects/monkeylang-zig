@@ -16,35 +16,35 @@ pub var EMPTY_ARRAY: Object = .{ .array = obj.ArrayLiteral.empty };
 
 pub var len_object: Object = .{
     .builtin = .{
-        .func = len_fn,
+        .func = lenFn,
         .tag = .len,
     },
 };
 
 pub var first_object: Object = .{
     .builtin = .{
-        .func = first_fn,
+        .func = firstFn,
         .tag = .first,
     },
 };
 
 pub var last_object: Object = .{
     .builtin = .{
-        .func = last_fn,
+        .func = lastFn,
         .tag = .last,
     },
 };
 
 pub var rest_object: Object = .{
     .builtin = .{
-        .func = rest_fn,
+        .func = restFn,
         .tag = .rest,
     },
 };
 
 pub var push_object: Object = .{
     .builtin = .{
-        .func = push_fn,
+        .func = pushFn,
         .tag = .push,
     },
 };
@@ -78,7 +78,7 @@ pub fn getFnObject(bytes: []const u8) ?*Object {
     return null;
 }
 
-fn len_fn(allocator: Allocator, args: []*Object) !*Object {
+fn lenFn(allocator: Allocator, args: []*Object) !*Object {
     if (try expectArgNumber(allocator, 1, args)) |err_object| {
         return err_object;
     }
@@ -109,7 +109,7 @@ fn len_fn(allocator: Allocator, args: []*Object) !*Object {
     }
 }
 
-fn first_fn(allocator: Allocator, args: []*Object) !*Object {
+fn firstFn(allocator: Allocator, args: []*Object) !*Object {
     if (try expectArgNumber(allocator, 1, args)) |err_object| {
         return err_object;
     }
@@ -124,7 +124,7 @@ fn first_fn(allocator: Allocator, args: []*Object) !*Object {
     }
 }
 
-fn last_fn(allocator: Allocator, args: []*Object) !*Object {
+fn lastFn(allocator: Allocator, args: []*Object) !*Object {
     if (try expectArgNumber(allocator, 1, args)) |err_object| {
         return err_object;
     }
@@ -145,7 +145,7 @@ fn last_fn(allocator: Allocator, args: []*Object) !*Object {
     }
 }
 
-fn rest_fn(allocator: Allocator, args: []*Object) !*Object {
+fn restFn(allocator: Allocator, args: []*Object) !*Object {
     if (try expectArgNumber(allocator, 1, args)) |err_object| {
         return err_object;
     }
@@ -175,7 +175,7 @@ fn rest_fn(allocator: Allocator, args: []*Object) !*Object {
     }
 }
 
-fn push_fn(allocator: Allocator, args: []*Object) !*Object {
+fn pushFn(allocator: Allocator, args: []*Object) !*Object {
     if (try expectArgNumber(allocator, 2, args)) |err_object| {
         return err_object;
     }
