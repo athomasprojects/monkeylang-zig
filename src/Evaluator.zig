@@ -952,7 +952,6 @@ test "builtin len unsupported arguments and wrong number of arguments" {
     const src = [_][]const u8{
         "len(\"one\", \"two\")",
         "len(1)",
-        "len([1,fn(){}, \"foo\"])",
         "len(fn(){})",
         "let foo = fn(x) { x * 2 }; len(foo)",
         "let bar = fn(x) { x / 2 - x }; len(bar(2))",
@@ -963,7 +962,6 @@ test "builtin len unsupported arguments and wrong number of arguments" {
     const lengths = [_][]const u8{
         "incorrect number of arguments: expected 1, got 2",
         "argument to `len` not supported: got INTEGER",
-        "argument to `len` not supported: got ARRAY",
         "argument to `len` not supported: got FUNCTION",
         "argument to `len` not supported: got FUNCTION",
         "argument to `len` not supported: got INTEGER",
@@ -1199,4 +1197,69 @@ test "builtin push" {
         const object: *Object = try evaluator.evalProgram(&program, &env);
         try testing.expectEqualStrings(expected, try object.toString(allocator));
     }
+}
+
+test "build map function" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src =
+        \\let map = fn(arr, f) {
+        \\  let iter = fn(arr, accumulated) {
+        \\      if (len(arr) == 0) {
+        \\        accumulated
+        \\      } else {
+        \\        iter(rest(arr), push(accumulated, f(first(arr))));
+        \\      }
+        \\  };
+        \\  iter(arr, []);
+        \\};
+        \\let a = [1, 2, 3, 4];
+        \\let double = fn(x) { x * 2 };
+        \\map(a, double);
+    ;
+    const expected = "[2, 4, 6, 8]";
+
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const object: *Object = try evaluator.evalProgram(&program, &env);
+    try testing.expectEqualStrings(expected, try object.toString(allocator));
+}
+
+test "build reduce function" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src =
+        \\let reduce = fn(arr, initial, f) {
+        \\  let iter = fn(arr, result) {
+        \\      if (len(arr) == 0) {
+        \\          result
+        \\      } else {
+        \\          iter(rest(arr), f(result, first(arr)));
+        \\      }
+        \\  };
+        \\  iter(arr, initial);
+        \\};
+        \\let sum = fn(arr) {
+        \\  reduce(arr, 0, fn(initial, el) { initial + el });
+        \\};
+        \\sum([1, 2, 3, 4, 5]);
+    ;
+    const expected = "15";
+
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const object: *Object = try evaluator.evalProgram(&program, &env);
+    try testing.expectEqualStrings(expected, try object.toString(allocator));
 }

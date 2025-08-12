@@ -89,6 +89,18 @@ fn len_fn(allocator: Allocator, args: []*Object) !*Object {
             integer_ptr.* = .{ .integer = @intCast(string.len) };
             return integer_ptr;
         },
+        .array => |array_literal| {
+            const integer_ptr: *Object = allocator.create(Object) catch return EvaluatorError.OutOfMemory;
+            const length: i64 = blk: {
+                if (array_literal.elements) |elements| {
+                    break :blk @intCast(elements.items.len);
+                } else {
+                    break :blk 0;
+                }
+            };
+            integer_ptr.* = .{ .integer = length };
+            return integer_ptr;
+        },
         else => return try createError(
             allocator,
             "argument to `len` not supported: got {s}",
