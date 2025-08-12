@@ -42,11 +42,19 @@ pub var rest_object: Object = .{
     },
 };
 
+pub var push_object: Object = .{
+    .builtin = .{
+        .func = push_fn,
+        .tag = .push,
+    },
+};
+
 const keywords = std.StaticStringMap(TagType).initComptime(.{
     .{ "len", .len },
     .{ "first", .first },
     .{ "last", .last },
     .{ "rest", .rest },
+    .{ "push", .push },
 });
 
 pub const TagType = enum {
@@ -54,6 +62,7 @@ pub const TagType = enum {
     first,
     last,
     rest,
+    push,
 };
 
 pub fn getFnObject(bytes: []const u8) ?*Object {
@@ -63,6 +72,7 @@ pub fn getFnObject(bytes: []const u8) ?*Object {
             .first => &first_object,
             .last => &last_object,
             .rest => &rest_object,
+            .push => &push_object,
         };
     }
     return null;
@@ -148,6 +158,33 @@ fn rest_fn(allocator: Allocator, args: []*Object) !*Object {
         else => return try createError(
             allocator,
             "argument to `rest` must be ARRAY: got {s}",
+            .{args[0].typeName()},
+        ),
+    }
+}
+
+fn push_fn(allocator: Allocator, args: []*Object) !*Object {
+    if (try expectArgNumber(allocator, 2, args)) |err_object| {
+        return err_object;
+    }
+
+    switch (args[0].*) {
+        .array => |array_literal| {
+            const array_ptr: *Object = allocator.create(Object) catch return EvaluatorError.OutOfMemory;
+            var new_array: ArrayList(*Object) = blk: {
+                if (array_literal.elements) |elements| {
+                    break :blk elements.clone() catch return EvaluatorError.OutOfMemory;
+                } else {
+                    break :blk .init(allocator);
+                }
+            };
+            new_array.append(args[args.len - 1]) catch return EvaluatorError.OutOfMemory;
+            array_ptr.* = .{ .array = .{ .elements = new_array } };
+            return array_ptr;
+        },
+        else => return try createError(
+            allocator,
+            "argument to `push` must be ARRAY: got {s}",
             .{args[0].typeName()},
         ),
     }

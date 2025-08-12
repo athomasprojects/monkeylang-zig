@@ -1165,3 +1165,38 @@ test "builtin rest" {
         try testing.expectEqualStrings(expected, try object.toString(allocator));
     }
 }
+
+test "builtin push" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src = [_][]const u8{
+        "push([], 1)",
+        "push([\"foo\", \"bar\"], \"baz\")",
+        "let a = [\"foo\", 1, \"bar\", 5 - 3 * 2, \"baz\"]; push(a, true)",
+        "let b = [1]; push(b,2)",
+        "let c = [1]; push(push(c,2),3)",
+        "let d = [1]; push(push(push(d,2),3),4)",
+    };
+
+    const expected_array_literals = [_][]const u8{
+        "[1]",
+        "[\"foo\", \"bar\", \"baz\"]",
+        "[\"foo\", 1, \"bar\", -1, \"baz\", true]",
+        "[1, 2]",
+        "[1, 2, 3]",
+        "[1, 2, 3, 4]",
+    };
+
+    for (src, expected_array_literals) |input, expected| {
+        var lexer: Lexer = .init(input);
+        var parser: Parser = .init(&lexer, allocator);
+        var program = try parser.parse();
+
+        var evaluator: Evaluator = .init(allocator);
+        var env: Environment = .init(allocator);
+        const object: *Object = try evaluator.evalProgram(&program, &env);
+        try testing.expectEqualStrings(expected, try object.toString(allocator));
+    }
+}
