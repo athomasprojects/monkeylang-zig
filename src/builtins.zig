@@ -13,6 +13,7 @@ pub var TRUE: Object = true_object;
 pub var FALSE: Object = false_object;
 pub var NULL: Object = null_object;
 pub var EMPTY_ARRAY: Object = .{ .array = obj.ArrayLiteral.empty };
+pub var EMPTY_HASH: Object = .{ .hash = obj.Hash.empty };
 
 pub var len_object: Object = .{
     .builtin = .{

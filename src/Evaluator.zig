@@ -123,7 +123,6 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
                 },
             }
         },
-        // TODO: Implement array literal evaluation.
         .array_literal => |array_literal| {
             if (array_literal.elements) |elements| {
                 var evaled: *Object = &builtins.NULL;
@@ -135,14 +134,13 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
                         else => evaled_elems.append(evaled) catch break :outer EvaluatorError.OutOfMemory,
                     }
                 }
-                const array_literal_ptr: *Object = self.allocator.create(Object) catch return EvaluatorError.OutOfMemory;
+                const array_literal_ptr: *Object = self.allocator.create(Object) catch break :outer EvaluatorError.OutOfMemory;
                 array_literal_ptr.* = .{
                     .array = .{ .elements = evaled_elems },
                 };
                 break :outer array_literal_ptr;
             } else break :outer &builtins.EMPTY_ARRAY;
         },
-        // TODO: Implement index experssion evaluation.
         .index_expression => |index_expression| {
             const left: *Object = try self.evalExpression(index_expression.left, scope);
             switch (left.*) {
@@ -156,8 +154,32 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
             }
             break :outer try self.evalIndexExpression(left, index);
         },
-        // TODO: Implement hash literal evaluation.
-        .hash_literal => EvaluatorError.HashLiteral,
+        .hash_literal => |hash_literal| {
+            if (hash_literal.entries) |entries| {
+                var pairs: obj.Hash.HashMap = .init(self.allocator);
+                var key: *Object = &builtins.NULL;
+                var value: *Object = &builtins.NULL;
+
+                for (entries.items) |*entry| {
+                    key = try self.evalExpression(&entry.key, scope);
+                    switch (key.*) {
+                        .error_ => break :outer key,
+                        else => value = try self.evalExpression(&entry.value, scope),
+                    }
+                    switch (value.*) {
+                        .error_ => break :outer value,
+                        else => {},
+                    }
+                    pairs.put(obj.Hashable.fromObject(key), value) catch break :outer EvaluatorError.OutOfMemory;
+                }
+                const hash_literal_ptr: *Object = self.allocator.create(Object) catch break :outer EvaluatorError.OutOfMemory;
+                hash_literal_ptr.* = .{
+                    .hash = .{ .pairs = pairs },
+                };
+                break :outer hash_literal_ptr;
+            }
+            break :outer &builtins.EMPTY_HASH;
+        },
     };
 }
 
@@ -366,6 +388,8 @@ fn evalIndexExpression(self: *Evaluator, left: *Object, index: *Object) !*Object
             },
             else => break :outer try self.createError("index operator not supported: {s}", .{index.typeName()}),
         },
+        // TODO: Implement index expression evaluation for hashes.
+        // .hash => {}
         else => try self.createError("index operator not supported: {s}", .{left.typeName()}),
     };
 }
@@ -1263,4 +1287,64 @@ test "build reduce function" {
     var env: Environment = .init(allocator);
     const object: *Object = try evaluator.evalProgram(&program, &env);
     try testing.expectEqualStrings(expected, try object.toString(allocator));
+}
+
+test "hash literals" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src =
+        \\let name = "name";
+        \\let type = "language";
+        \\let status = "Awesome!";
+        \\{ name: "monkey",
+        \\  "age": "99",
+        \\  "type": type, "status": status,
+        \\  "foo": fn(x) { x * 2 / 5 }(10),
+        \\  "bool": true
+        \\}
+    ;
+
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const object: *Object = try evaluator.evalProgram(&program, &env);
+    switch (object.*) {
+        .hash => |hash| {
+            if (hash.pairs) |pairs| {
+                var pair_iter = pairs.iterator();
+                while (pair_iter.next()) |pair| {
+                    const k = pair.key_ptr.string;
+                    const result = blk: {
+                        if (std.mem.eql(u8, k, "foo")) {
+                            if (pair.value_ptr.*.integer == 4) break :blk true;
+                        }
+                        if (std.mem.eql(u8, k, "bool")) {
+                            break :blk pair.value_ptr.*.boolean;
+                        }
+                        const v = pair.value_ptr.*.string;
+                        if (std.mem.eql(u8, k, "name") and std.mem.eql(u8, v, "monkey")) {
+                            break :blk true;
+                        }
+                        if (std.mem.eql(u8, k, "age") and std.mem.eql(u8, v, "99")) {
+                            break :blk true;
+                        }
+                        if (std.mem.eql(u8, k, "type") and std.mem.eql(u8, v, "language")) {
+                            break :blk true;
+                        }
+                        if (std.mem.eql(u8, k, "status") and std.mem.eql(u8, v, "Awesome!")) {
+                            break :blk true;
+                        }
+                        break :blk false;
+                    };
+                    try expect(result);
+                }
+            } else unreachable;
+        },
+        else => unreachable,
+    }
 }

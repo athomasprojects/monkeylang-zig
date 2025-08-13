@@ -17,6 +17,7 @@ pub const Object = union(enum) {
     error_: Error,
     builtin: BuiltinFunction,
     array: ArrayLiteral,
+    hash: Hash,
 
     pub fn print(self: Object) void {
         switch (self) {
@@ -29,6 +30,7 @@ pub const Object = union(enum) {
             .error_ => |error_| error_.print(),
             .builtin => |builtin_fn| builtin_fn.print(),
             .array => |array_literal| array_literal.print(),
+            .hash => |hash| hash.print(),
         }
     }
 
@@ -55,6 +57,7 @@ pub const Object = union(enum) {
             .error_ => |error_| try error_.toString(allocator),
             .builtin => |builtin_fn| try builtin_fn.toString(allocator),
             .array => |array_literal| try array_literal.toString(allocator),
+            .hash => |hash| try hash.toString(allocator),
         };
     }
 
@@ -69,6 +72,7 @@ pub const Object = union(enum) {
             .error_ => "ERROR",
             .builtin => "BUILTIN",
             .array => "ARRAY",
+            .hash => "HASH",
         };
     }
 };
@@ -173,5 +177,137 @@ pub const ArrayLiteral = struct {
             }
             return std.fmt.allocPrint(allocator, "[{s}]", .{strings.items});
         } else return std.fmt.allocPrint(allocator, "[]", .{});
+    }
+};
+
+pub const Hashable = union(enum) {
+    boolean: bool,
+    integer: i64,
+    string: []const u8,
+
+    // pub fn hashable(object: *Object) bool {
+    //     return switch (object.*) {
+    //         .boolean, .integer, .string => true,
+    //         else => false,
+    //     };
+    // }
+
+    pub fn fromObject(object: *Object) Hashable {
+        return switch (object.*) {
+            .boolean => |boolean| .{ .boolean = boolean },
+            .integer => |integer| .{ .integer = integer },
+            .string => |string| .{ .string = string },
+            else => unreachable,
+        };
+    }
+
+    pub fn print(self: Hashable) void {
+        switch (self) {
+            .integer => |integer| std.debug.print("{d}", .{integer}),
+            .boolean => |boolean| std.debug.print("{}", .{boolean}),
+            .string => |string| std.debug.print("\"{s}\"", .{string}),
+        }
+    }
+
+    pub fn toString(self: Hashable, allocator: std.mem.Allocator) ![]u8 {
+        return switch (self) {
+            .integer => |integer| try std.fmt.allocPrint(
+                allocator,
+                "{d}",
+                .{integer},
+            ),
+            .boolean => |boolean| try std.fmt.allocPrint(
+                allocator,
+                "{}",
+                .{boolean},
+            ),
+            .string => |string| try std.fmt.allocPrint(
+                allocator,
+                "\"{s}\"",
+                .{string},
+            ),
+        };
+    }
+};
+
+pub const Hash = struct {
+    pairs: ?HashMap,
+
+    pub const empty: Hash = .{ .pairs = null };
+
+    pub const HashMap = std.HashMap(
+        Hashable,
+        *Object,
+        HashContext,
+        std.hash_map.default_max_load_percentage,
+    );
+
+    pub const HashContext = struct {
+        pub fn eql(_: HashContext, key_a: Hashable, key_b: Hashable) bool {
+            return switch (key_a) {
+                .string => |a| switch (key_b) {
+                    .string => |b| std.mem.eql(u8, a, b),
+                    else => false,
+                },
+                .boolean => |a| switch (key_b) {
+                    .boolean => |b| a == b,
+                    else => false,
+                },
+                .integer => |a| switch (key_b) {
+                    .integer => |b| a == b,
+                    else => false,
+                },
+            };
+        }
+
+        pub fn hash(_: HashContext, key: Hashable) u64 {
+            return switch (key) {
+                .integer => |integer| (std.hash_map.AutoContext(i64){}).hash(integer),
+                .boolean => |boolean| (std.hash_map.AutoContext(bool){}).hash(boolean),
+                .string => |str| (std.hash_map.StringContext{}).hash(str),
+            };
+        }
+    };
+
+    pub fn init(allocator: Allocator) Hash {
+        return .{ .pairs = HashMap.init(allocator) };
+    }
+
+    pub fn get(self: Hash, key: Hashable) ?*Object {
+        return self.pairs.?.get(key) orelse null;
+    }
+
+    pub fn print(self: Hash) void {
+        std.debug.print("{{", .{});
+        if (self.pairs) |pairs| {
+            const max = pairs.count() - 1;
+            var idx: u32 = 0;
+            var pair_iter = pairs.iterator();
+            while (pair_iter.next()) |pair| : (idx += 1) {
+                pair.key_ptr.print();
+                std.debug.print(": ", .{});
+                pair.value_ptr.*.print();
+                if (idx < max) std.debug.print(", ", .{});
+            }
+        }
+        std.debug.print("}}", .{});
+    }
+
+    pub fn toString(self: Hash, allocator: Allocator) ToStringError![]u8 {
+        var strings = ArrayList(u8).init(allocator);
+        defer strings.deinit();
+        if (self.pairs) |pairs| {
+            const max = pairs.count() - 1;
+            var idx: u32 = 0;
+            var pair_iter = pairs.iterator();
+            while (pair_iter.next()) |pair| : (idx += 1) {
+                try strings.appendSlice(try pair.key_ptr.toString(allocator));
+                try strings.appendSlice(": ");
+                try strings.appendSlice(try pair.value_ptr.*.toString(allocator));
+                if (idx < max) try strings.appendSlice(", ");
+            }
+            return std.fmt.allocPrint(allocator, "{{{s}}}", .{strings.items});
+        }
+        return std.fmt.allocPrint(allocator, "{{}}", .{});
     }
 };
