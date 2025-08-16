@@ -50,12 +50,19 @@ pub var push_object: Object = .{
     },
 };
 
+pub var puts_object: Object = .{
+    .builtin = .{
+        .func = putsFn,
+        .tag = .puts,
+    },
+};
 const keywords = std.StaticStringMap(TagType).initComptime(.{
     .{ "len", .len },
     .{ "first", .first },
     .{ "last", .last },
     .{ "rest", .rest },
     .{ "push", .push },
+    .{ "puts", .puts },
 });
 
 pub const TagType = enum {
@@ -64,6 +71,7 @@ pub const TagType = enum {
     last,
     rest,
     push,
+    puts,
 };
 
 pub fn getFnObject(bytes: []const u8) ?*Object {
@@ -74,6 +82,7 @@ pub fn getFnObject(bytes: []const u8) ?*Object {
             .last => &last_object,
             .rest => &rest_object,
             .push => &push_object,
+            .puts => &puts_object,
         };
     }
     return null;
@@ -201,6 +210,14 @@ fn pushFn(allocator: Allocator, args: []*Object) !*Object {
             .{args[0].typeName()},
         ),
     }
+}
+
+fn putsFn(_: Allocator, args: []*Object) !*Object {
+    for (args) |arg| {
+        arg.print();
+        std.debug.print("\n", .{});
+    }
+    return &NULL;
 }
 
 fn expectArgNumber(allocator: Allocator, expected: usize, args: []*Object) !?*Object {
