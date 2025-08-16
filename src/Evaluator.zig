@@ -145,14 +145,14 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
             const left: *Object = try self.evalExpression(index_expression.left, scope);
             switch (left.*) {
                 .error_ => break :outer left,
-                else => {},
+                else => {
+                    const index: *Object = try self.evalExpression(index_expression.index, scope);
+                    break :outer switch (index.*) {
+                        .error_ => index,
+                        else => try self.evalIndexExpression(left, index),
+                    };
+                },
             }
-            const index: *Object = try self.evalExpression(index_expression.index, scope);
-            switch (index.*) {
-                .error_ => break :outer index,
-                else => {},
-            }
-            break :outer try self.evalIndexExpression(left, index);
         },
         .hash_literal => |hash_literal| {
             if (hash_literal.entries) |entries| {
@@ -168,9 +168,8 @@ fn evalExpression(self: *Evaluator, expr: *ast.Expression, scope: *Environment) 
                     }
                     switch (value.*) {
                         .error_ => break :outer value,
-                        else => {},
+                        else => pairs.put(obj.Hashable.fromObject(key), value) catch break :outer EvaluatorError.OutOfMemory,
                     }
-                    pairs.put(obj.Hashable.fromObject(key), value) catch break :outer EvaluatorError.OutOfMemory;
                 }
                 const hash_literal_ptr: *Object = self.allocator.create(Object) catch break :outer EvaluatorError.OutOfMemory;
                 hash_literal_ptr.* = .{
@@ -388,8 +387,12 @@ fn evalIndexExpression(self: *Evaluator, left: *Object, index: *Object) !*Object
             },
             else => break :outer try self.createError("index operator not supported: {s}", .{index.typeName()}),
         },
-        // TODO: Implement index expression evaluation for hashes.
-        // .hash => {}
+        .hash => |hash_literal| {
+            if (hash_literal.pairs) |pairs| {
+                break :outer pairs.get(obj.Hashable.fromObject(index)) orelse &builtins.NULL;
+            }
+            break :outer &builtins.NULL;
+        },
         else => try self.createError("index operator not supported: {s}", .{left.typeName()}),
     };
 }
@@ -1347,4 +1350,27 @@ test "hash literals" {
         },
         else => unreachable,
     }
+}
+
+test "hash index expressions" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src =
+        \\let people = [{"name": "Alice", "age": 24}, {"name": "Anna", "age": 28}];
+        \\people[0]["name"] + " and " + people[1]["name"]
+    ;
+    const expected =
+        \\"Alice and Anna"
+    ;
+
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    var program = try parser.parse();
+
+    var evaluator: Evaluator = .init(allocator);
+    var env: Environment = .init(allocator);
+    const object: *Object = try evaluator.evalProgram(&program, &env);
+    try testing.expectEqualStrings(expected, try object.toString(allocator));
 }
