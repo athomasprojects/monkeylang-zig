@@ -34,7 +34,7 @@ pub const Object = union(enum) {
         }
     }
 
-    pub fn toString(self: Object, allocator: std.mem.Allocator) ![]u8 {
+    pub fn toString(self: Object, allocator: Allocator) ![]u8 {
         return switch (self) {
             .null_ => try std.fmt.allocPrint(allocator, "null", .{}),
             .integer => |integer| try std.fmt.allocPrint(
@@ -123,7 +123,7 @@ pub const Error = struct {
         std.debug.print("{s}", .{self.message});
     }
 
-    pub fn toString(self: Error, allocator: std.mem.Allocator) ![]u8 {
+    pub fn toString(self: Error, allocator: Allocator) ![]u8 {
         return try std.fmt.allocPrint(allocator, "{s}", .{self.message});
     }
 };
@@ -185,13 +185,6 @@ pub const Hashable = union(enum) {
     integer: i64,
     string: []const u8,
 
-    // pub fn hashable(object: *Object) bool {
-    //     return switch (object.*) {
-    //         .boolean, .integer, .string => true,
-    //         else => false,
-    //     };
-    // }
-
     pub fn fromObject(object: *Object) Hashable {
         return switch (object.*) {
             .boolean => |boolean| .{ .boolean = boolean },
@@ -209,7 +202,7 @@ pub const Hashable = union(enum) {
         }
     }
 
-    pub fn toString(self: Hashable, allocator: std.mem.Allocator) ![]u8 {
+    pub fn toString(self: Hashable, allocator: Allocator) ![]u8 {
         return switch (self) {
             .integer => |integer| try std.fmt.allocPrint(
                 allocator,
