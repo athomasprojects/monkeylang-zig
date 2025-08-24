@@ -1036,3 +1036,16 @@ test "hash literals" {
         else => unreachable,
     }
 }
+
+test "invalid hash literals" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const src =
+        \\{ "foo": 1, "two": "bar" ]
+    ;
+    var lexer: Lexer = .init(src);
+    var parser: Parser = .init(&lexer, allocator);
+    try testing.expectError(error.InvalidHashLiteral, parser.parse());
+}

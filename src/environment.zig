@@ -4,12 +4,13 @@ const StringHashMap = std.StringHashMap;
 const Object = @import("object.zig").Object;
 
 pub const Environment = struct {
-    outer: ?*Environment = null,
+    outer: ?*Environment,
     allocator: Allocator,
     store: StringHashMap(*Object),
 
     pub fn init(allocator: Allocator) Environment {
         return .{
+            .outer = null,
             .allocator = allocator,
             .store = StringHashMap(*Object).init(allocator),
         };

@@ -17,6 +17,24 @@ pub var LET: Object = let_object;
 pub var EMPTY_ARRAY: Object = .{ .array = obj.ArrayLiteral.empty };
 pub var EMPTY_HASH: Object = .{ .hash = obj.Hash.empty };
 
+pub const TagType = enum {
+    len,
+    first,
+    last,
+    rest,
+    push,
+    puts,
+};
+
+const keywords = std.StaticStringMap(TagType).initComptime(.{
+    .{ "len", .len },
+    .{ "first", .first },
+    .{ "last", .last },
+    .{ "rest", .rest },
+    .{ "push", .push },
+    .{ "puts", .puts },
+});
+
 pub var len_object: Object = .{
     .builtin = .{
         .func = lenFn,
@@ -57,24 +75,6 @@ pub var puts_object: Object = .{
         .func = putsFn,
         .tag = .puts,
     },
-};
-
-const keywords = std.StaticStringMap(TagType).initComptime(.{
-    .{ "len", .len },
-    .{ "first", .first },
-    .{ "last", .last },
-    .{ "rest", .rest },
-    .{ "push", .push },
-    .{ "puts", .puts },
-});
-
-pub const TagType = enum {
-    len,
-    first,
-    last,
-    rest,
-    push,
-    puts,
 };
 
 pub fn getFnObject(bytes: []const u8) ?*Object {
