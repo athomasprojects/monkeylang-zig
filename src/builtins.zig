@@ -8,10 +8,12 @@ const EvaluatorError = @import("Evaluator.zig").EvaluatorError;
 const true_object: Object = .{ .boolean = true };
 const false_object: Object = .{ .boolean = false };
 const null_object: Object = .null_;
+const let_object: Object = .let;
 
 pub var TRUE: Object = true_object;
 pub var FALSE: Object = false_object;
 pub var NULL: Object = null_object;
+pub var LET: Object = let_object;
 pub var EMPTY_ARRAY: Object = .{ .array = obj.ArrayLiteral.empty };
 pub var EMPTY_HASH: Object = .{ .hash = obj.Hash.empty };
 
@@ -56,6 +58,7 @@ pub var puts_object: Object = .{
         .tag = .puts,
     },
 };
+
 const keywords = std.StaticStringMap(TagType).initComptime(.{
     .{ "len", .len },
     .{ "first", .first },
@@ -111,7 +114,7 @@ fn lenFn(allocator: Allocator, args: []*Object) !*Object {
             integer_ptr.* = .{ .integer = length };
             return integer_ptr;
         },
-        else => return try createError(
+        else => return createError(
             allocator,
             "argument to `len` not supported: got {s}",
             .{args[0].typeName()},
@@ -126,7 +129,7 @@ fn firstFn(allocator: Allocator, args: []*Object) !*Object {
 
     switch (args[0].*) {
         .array => |array_literal| return if (array_literal.elements) |elements| elements.items[0] else &NULL,
-        else => return try createError(
+        else => return createError(
             allocator,
             "argument to `first` must be ARRAY: got {s}",
             .{args[0].typeName()},
@@ -147,7 +150,7 @@ fn lastFn(allocator: Allocator, args: []*Object) !*Object {
                 return &NULL;
             }
         },
-        else => return try createError(
+        else => return createError(
             allocator,
             "argument to `last` must be ARRAY: got {s}",
             .{args[0].typeName()},
@@ -177,7 +180,7 @@ fn restFn(allocator: Allocator, args: []*Object) !*Object {
                 return &NULL;
             }
         },
-        else => return try createError(
+        else => return createError(
             allocator,
             "argument to `rest` must be ARRAY: got {s}",
             .{args[0].typeName()},
@@ -204,7 +207,7 @@ fn pushFn(allocator: Allocator, args: []*Object) !*Object {
             array_ptr.* = .{ .array = .{ .elements = new_array } };
             return array_ptr;
         },
-        else => return try createError(
+        else => return createError(
             allocator,
             "argument to `push` must be ARRAY: got {s}",
             .{args[0].typeName()},
@@ -222,9 +225,9 @@ fn putsFn(_: Allocator, args: []*Object) !*Object {
 
 fn expectArgNumber(allocator: Allocator, expected: usize, args: []*Object) !?*Object {
     if (args.len != expected) {
-        return try createError(
+        return createError(
             allocator,
-            "incorrect number of arguments: expected {d}, got {d}",
+            "wrong number of arguments: expected {d}, got {d}",
             .{ expected, args.len },
         );
     } else {

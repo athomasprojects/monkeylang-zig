@@ -6,16 +6,51 @@ const TokenTag = tok.Tag;
 const Lexer = @import("Lexer.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const testing = std.testing;
 const expect = testing.expect;
-const ArenaAllocator = std.heap.ArenaAllocator;
+
+lexer: *Lexer,
+allocator: Allocator,
+current_token: Token,
+peek_token: Token,
+const Parser = @This();
 
 pub const ParserError = error{
     ExpectedExpression,
     ExpectedIdentifier,
     ExpectedInteger,
     ExpectedOperator,
-    ExpectedPeek,
+    ExpectedStringLiteral,
+    ExpectedIntegerLiteral,
+    ExpectedAssign,
+    ExpectedPlus,
+    ExpectedMinus,
+    ExpectedEqual,
+    ExpectedNotEqual,
+    ExpectedBang,
+    ExpectedAsterisk,
+    ExpectedSlash,
+    ExpectedLeftBrace,
+    ExpectedLeftBracket,
+    ExpectedLeftParen,
+    ExpectedeRightBrace,
+    ExpectedRightBracket,
+    ExpectedRightParen,
+    ExpectedLessThan,
+    ExpectedGreaterThan,
+    ExpectedComma,
+    ExpectedSemicolon,
+    ExpectedColon,
+    ExpectedKeywordElse,
+    ExpectedKeywordFalse,
+    ExpectedKeywordFunction,
+    ExpectedKeywordIf,
+    ExpectedKeywordLet,
+    ExpectedKeywordReturn,
+    ExpectedKeywordTrue,
+    ExpectedIllegal,
+    ExepectedEof,
     ExpectedReturn,
     ExpectedStatement,
     InvalidExpressionList,
@@ -26,12 +61,6 @@ pub const ParserError = error{
     InvalidProgram,
     OutOfMemory,
 };
-
-lexer: *Lexer,
-current_token: Token = .eof,
-peek_token: Token = .eof,
-allocator: Allocator,
-const Parser = @This();
 
 const Precedence = enum {
     lowest,
@@ -65,6 +94,8 @@ pub fn init(lexer: *Lexer, allocator: Allocator) Parser {
     var parser: Parser = .{
         .lexer = lexer,
         .allocator = allocator,
+        .current_token = .eof,
+        .peek_token = .eof,
     };
     parser.advance();
     parser.advance();
@@ -79,7 +110,7 @@ pub fn parse(self: *Parser) !ast.Program {
         else => {
             // TODO: check if `parseStatement` returns an error and switch over the `ParserError` set to handle each respective case.
             const s = try self.parseStatement();
-            statements.append(s) catch return ParserError.InvalidProgram;
+            statements.append(s) catch return error.InvalidProgram;
             self.advance();
             continue :state self.current_token;
         },
@@ -98,7 +129,7 @@ fn chompSemicolon(self: *Parser) void {
     }
 }
 
-fn parseStatement(self: *Parser) ParserError!ast.Statement {
+fn parseStatement(self: *Parser) !ast.Statement {
     return switch (self.current_token) {
         .keyword_let => .{ .let_statement = try self.parseLetStatement() },
         .keyword_return => .{ .return_statement = try self.parseReturnStatement() },
@@ -107,7 +138,7 @@ fn parseStatement(self: *Parser) ParserError!ast.Statement {
     };
 }
 
-fn parseLetStatement(self: *Parser) ParserError!ast.LetStatement {
+fn parseLetStatement(self: *Parser) !ast.LetStatement {
     try self.expectPeek(.identifier);
     const name = try self.parseIdentifier();
     try self.expectPeek(.assign);
@@ -115,7 +146,7 @@ fn parseLetStatement(self: *Parser) ParserError!ast.LetStatement {
     self.advance(); // Move parser to beginning of expression.
     const expr = try self.parseExpression(.lowest);
     self.chompSemicolon();
-    const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+    const expr_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
     expr_ptr.* = expr;
     return .{ .name = name, .value = expr_ptr };
 }
@@ -124,20 +155,20 @@ fn parseReturnStatement(self: *Parser) !ast.ReturnStatement {
     self.advance(); // Move parser to beginning of expression.
     const ret = try self.parseExpression(.lowest);
     self.chompSemicolon();
-    const ret_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+    const ret_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
     ret_ptr.* = ret;
     return .{ .value = ret_ptr };
 }
 
-fn parseExpressionStatement(self: *Parser) ParserError!ast.ExpressionStatement {
+fn parseExpressionStatement(self: *Parser) !ast.ExpressionStatement {
     const expr = try self.parseExpression(.lowest);
     self.chompSemicolon();
-    const expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+    const expr_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
     expr_ptr.* = expr;
     return .{ .expression = expr_ptr };
 }
 
-fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
+fn parseBlockStatement(self: *Parser) !ast.BlockStatement {
     self.advance();
     var statements = ArrayList(ast.Statement).init(self.allocator);
     return state: switch (self.current_token) {
@@ -147,7 +178,7 @@ fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
         },
         else => {
             const stmt = try self.parseStatement();
-            statements.append(stmt) catch return ParserError.OutOfMemory;
+            statements.append(stmt) catch return error.OutOfMemory;
             self.advance();
             continue :state self.current_token;
         },
@@ -157,14 +188,14 @@ fn parseBlockStatement(self: *Parser) ParserError!ast.BlockStatement {
 fn parseExpression(self: *Parser, precedence: Precedence) ParserError!ast.Expression {
     var left_expr = try self.parsePrefixToken(self.current_token);
     while (self.current_token != TokenTag.semicolon and precedence.isLessThan(Precedence.fromToken(self.peek_token))) {
-        const left_expr_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+        const left_expr_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
         left_expr_ptr.* = left_expr;
         left_expr = try self.parseInfixToken(left_expr_ptr);
     }
     return left_expr;
 }
 
-fn parsePrefixToken(self: *Parser, token: Token) ParserError!ast.Expression {
+fn parsePrefixToken(self: *Parser, token: Token) !ast.Expression {
     return switch (token) {
         .identifier => |ident| .{ .identifier = .{ .value = ident } },
         .integer_literal => |integer_literal| .{
@@ -181,11 +212,11 @@ fn parsePrefixToken(self: *Parser, token: Token) ParserError!ast.Expression {
         .keyword_function => .{ .function = try self.parseFunctionLiteral() },
         .l_bracket => .{ .array_literal = try self.parseArrayLiteral() },
         .l_brace => .{ .hash_literal = try self.parseHashLiteral() },
-        else => ParserError.InvalidPrefix,
+        else => error.InvalidPrefix,
     };
 }
 
-fn parseInfixToken(self: *Parser, left: *ast.Expression) ParserError!ast.Expression {
+fn parseInfixToken(self: *Parser, left: *ast.Expression) !ast.Expression {
     self.advance();
     return switch (self.current_token) {
         .l_paren => .{ .call = try self.parseCallExpression(left) },
@@ -194,51 +225,51 @@ fn parseInfixToken(self: *Parser, left: *ast.Expression) ParserError!ast.Express
     };
 }
 
-fn parsePrefixExpression(self: *Parser) ParserError!ast.PrefixExpression {
+fn parsePrefixExpression(self: *Parser) !ast.PrefixExpression {
     if (self.current_token.isOperator()) {
         const current_token = self.current_token;
         self.advance();
         const right_expr = try self.parseExpression(.prefix);
-        const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+        const right_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
         right_ptr.* = right_expr;
         return .{
             .operator = current_token,
             .right = right_ptr,
         };
-    } else return ParserError.ExpectedOperator;
+    } else return error.ExpectedOperator;
 }
 
-fn parseInfixExpression(self: *Parser, left: *ast.Expression) ParserError!ast.InfixExpression {
+fn parseInfixExpression(self: *Parser, left: *ast.Expression) !ast.InfixExpression {
     if (self.current_token.isOperator()) {
         const current_token = self.current_token;
         self.advance();
         const right = try self.parseExpression(Precedence.fromToken(current_token));
-        const right_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+        const right_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
         right_ptr.* = right;
         return .{
             .operator = current_token,
             .left = left,
             .right = right_ptr,
         };
-    } else return ParserError.ExpectedOperator;
+    } else return error.ExpectedOperator;
 }
 
-fn parseGroupedExpression(self: *Parser) ParserError!ast.Expression {
+fn parseGroupedExpression(self: *Parser) !ast.Expression {
     self.advance();
     const expr = try self.parseExpression(.lowest);
     try self.expectPeek(.r_paren);
     return expr;
 }
 
-fn parseIfExpression(self: *Parser) ParserError!ast.IfExpression {
+fn parseIfExpression(self: *Parser) !ast.IfExpression {
     try self.expectPeek(.l_paren);
     const condition = try self.parseExpression(.lowest);
-    const condition_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+    const condition_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
     condition_ptr.* = condition;
 
     try self.expectPeek(.l_brace);
     const then_branch = try self.parseBlockStatement();
-    const then_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
+    const then_ptr = self.allocator.create(ast.BlockStatement) catch return error.OutOfMemory;
     then_ptr.* = then_branch;
 
     switch (self.peek_token) {
@@ -246,7 +277,7 @@ fn parseIfExpression(self: *Parser) ParserError!ast.IfExpression {
             self.advance();
             try self.expectPeek(.l_brace);
             const else_branch = try self.parseBlockStatement();
-            const else_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
+            const else_ptr = self.allocator.create(ast.BlockStatement) catch return error.OutOfMemory;
             else_ptr.* = else_branch;
             return .initElseBranch(condition_ptr, then_ptr, else_ptr);
         },
@@ -254,38 +285,40 @@ fn parseIfExpression(self: *Parser) ParserError!ast.IfExpression {
     }
 }
 
-fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
+fn parseFunctionLiteral(self: *Parser) !ast.FunctionLiteral {
     // Consume left paren.
     try self.expectPeek(.l_paren);
     self.advance();
 
     // Parse function parameters.
     const parameters: ?ArrayList(ast.Identifier) = outer: {
-        if (self.current_token != .r_paren) {
-            var parameter_list = ArrayList(ast.Identifier).init(self.allocator);
-            const first_param = try self.parseIdentifier();
-            parameter_list.append(first_param) catch return ParserError.OutOfMemory;
-            state: switch (self.peek_token) {
-                .comma => {
-                    self.advance();
-                    self.advance();
-                    const param = try self.parseIdentifier();
-                    parameter_list.append(param) catch return ParserError.OutOfMemory;
-                    continue :state self.peek_token;
-                },
-                .r_paren => {
-                    self.advance();
-                    break :outer parameter_list;
-                },
-                else => return ParserError.InvalidFunctionParameter,
-            }
-        } else break :outer null;
+        if (self.current_token == .r_paren) {
+            break :outer null;
+        }
+
+        var parameter_list = ArrayList(ast.Identifier).init(self.allocator);
+        const first_param = try self.parseIdentifier();
+        parameter_list.append(first_param) catch return error.OutOfMemory;
+        state: switch (self.peek_token) {
+            .comma => {
+                self.advance();
+                self.advance();
+                const param = try self.parseIdentifier();
+                parameter_list.append(param) catch return error.OutOfMemory;
+                continue :state self.peek_token;
+            },
+            .r_paren => {
+                self.advance();
+                break :outer parameter_list;
+            },
+            else => return error.InvalidFunctionParameter,
+        }
     };
 
     // Parse the function body.
     try self.expectPeek(.l_brace);
     const body = try self.parseBlockStatement();
-    const body_ptr = self.allocator.create(ast.BlockStatement) catch return ParserError.OutOfMemory;
+    const body_ptr = self.allocator.create(ast.BlockStatement) catch return error.OutOfMemory;
     body_ptr.* = body;
     return .{
         .parameters = parameters,
@@ -293,7 +326,7 @@ fn parseFunctionLiteral(self: *Parser) ParserError!ast.FunctionLiteral {
     };
 }
 
-fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.Call {
+fn parseCallExpression(self: *Parser, callee: *ast.Expression) !ast.Call {
     self.advance(); // Consume left paren.
 
     // No arguments.
@@ -304,24 +337,24 @@ fn parseCallExpression(self: *Parser, callee: *ast.Expression) ParserError!ast.C
     // Parse function arguments.
     var args = ArrayList(ast.Expression).init(self.allocator);
     const first_arg = try self.parseExpression(.lowest);
-    args.append(first_arg) catch return ParserError.OutOfMemory;
+    args.append(first_arg) catch return error.OutOfMemory;
     return state: switch (self.peek_token) {
         .comma => {
             self.advance();
             self.advance();
             const arg = try self.parseExpression(.lowest);
-            args.append(arg) catch return ParserError.OutOfMemory;
+            args.append(arg) catch return error.OutOfMemory;
             continue :state self.peek_token;
         },
         .r_paren => {
             self.advance();
             break :state .init(callee, args);
         },
-        else => break :state ParserError.InvalidExpressionList,
+        else => break :state error.InvalidExpressionList,
     };
 }
 
-fn parseArrayLiteral(self: *Parser) ParserError!ast.ArrayLiteral {
+fn parseArrayLiteral(self: *Parser) !ast.ArrayLiteral {
     self.advance(); // Consume left bracket.
 
     // Empty array.
@@ -332,33 +365,33 @@ fn parseArrayLiteral(self: *Parser) ParserError!ast.ArrayLiteral {
     // Parse array elements.
     var elements = ArrayList(ast.Expression).init(self.allocator);
     const first_element = try self.parseExpression(.lowest);
-    elements.append(first_element) catch return ParserError.OutOfMemory;
+    elements.append(first_element) catch return error.OutOfMemory;
     return state: switch (self.peek_token) {
         .comma => {
             self.advance();
             self.advance();
             const element = try self.parseExpression(.lowest);
-            elements.append(element) catch return ParserError.OutOfMemory;
+            elements.append(element) catch return error.OutOfMemory;
             continue :state self.peek_token;
         },
         .r_bracket => {
             self.advance();
             break :state .{ .elements = elements };
         },
-        else => ParserError.InvalidExpressionList,
+        else => error.InvalidExpressionList,
     };
 }
 
-fn parseIndexExpression(self: *Parser, left: *ast.Expression) ParserError!ast.IndexExpression {
+fn parseIndexExpression(self: *Parser, left: *ast.Expression) !ast.IndexExpression {
     self.advance();
     const index_expression = try self.parseExpression(.lowest);
     try self.expectPeek(.r_bracket);
-    const index_ptr = self.allocator.create(ast.Expression) catch return ParserError.OutOfMemory;
+    const index_ptr = self.allocator.create(ast.Expression) catch return error.OutOfMemory;
     index_ptr.* = index_expression;
     return .{ .left = left, .index = index_ptr };
 }
 
-fn parseHashLiteral(self: *Parser) ParserError!ast.HashLiteral {
+fn parseHashLiteral(self: *Parser) !ast.HashLiteral {
     self.advance();
 
     // Empty hash.
@@ -376,7 +409,7 @@ fn parseHashLiteral(self: *Parser) ParserError!ast.HashLiteral {
         .key = first_key,
         .value = first_value,
     };
-    entries.append(first_entry) catch return ParserError.OutOfMemory;
+    entries.append(first_entry) catch return error.OutOfMemory;
     return state: switch (self.peek_token) {
         .comma => {
             self.advance();
@@ -389,29 +422,63 @@ fn parseHashLiteral(self: *Parser) ParserError!ast.HashLiteral {
                 .key = key,
                 .value = value,
             };
-            entries.append(entry) catch return ParserError.OutOfMemory;
+            entries.append(entry) catch return error.OutOfMemory;
             continue :state self.peek_token;
         },
         .r_brace => {
             self.advance();
             break :state .{ .entries = entries };
         },
-        else => ParserError.InvalidHashLiteral,
+        else => error.InvalidHashLiteral,
     };
 }
 
-fn parseIdentifier(self: *Parser) ParserError!ast.Identifier {
+fn parseIdentifier(self: *Parser) !ast.Identifier {
     return switch (self.current_token) {
         .identifier => |ident| .{ .value = ident },
-        else => ParserError.ExpectedIdentifier,
+        else => error.ExpectedIdentifier,
     };
 }
 
 /// Advances the parser if `peek_token` matches `expected`. Otherwise returns a `ParserError`.
-fn expectPeek(self: *Parser, expected: TokenTag) ParserError!void {
+fn expectPeek(self: *Parser, expected: TokenTag) !void {
     if (self.peek_token == expected) {
         self.advance();
-    } else return ParserError.ExpectedPeek;
+    } else {
+        return switch (expected) {
+            .identifier => error.ExpectedIdentifier,
+            .string_literal => error.ExpectedStringLiteral,
+            .integer_literal => error.ExpectedIntegerLiteral,
+            .assign => error.ExpectedAssign,
+            .plus => error.ExpectedPlus,
+            .minus => error.ExpectedMinus,
+            .equal => error.ExpectedEqual,
+            .not_equal => error.ExpectedNotEqual,
+            .bang => error.ExpectedBang,
+            .asterisk => error.ExpectedAsterisk,
+            .slash => error.ExpectedSlash,
+            .l_brace => error.ExpectedLeftBrace,
+            .l_bracket => error.ExpectedLeftBracket,
+            .l_paren => error.ExpectedLeftParen,
+            .r_brace => error.ExpectedeRightBrace,
+            .r_bracket => error.ExpectedRightBracket,
+            .r_paren => error.ExpectedRightParen,
+            .less_than => error.ExpectedLessThan,
+            .greater_than => error.ExpectedGreaterThan,
+            .comma => error.ExpectedComma,
+            .semicolon => error.ExpectedSemicolon,
+            .colon => error.ExpectedColon,
+            .keyword_else => error.ExpectedKeywordElse,
+            .keyword_false => error.ExpectedKeywordFalse,
+            .keyword_function => error.ExpectedKeywordFunction,
+            .keyword_if => error.ExpectedKeywordIf,
+            .keyword_let => error.ExpectedKeywordLet,
+            .keyword_return => error.ExpectedKeywordReturn,
+            .keyword_true => error.ExpectedKeywordTrue,
+            .illegal => error.ExpectedIllegal,
+            .eof => error.ExepectedEof,
+        };
+    }
 }
 
 pub fn printParserError(self: ParserError) void {
@@ -838,8 +905,8 @@ test "function arguments with trailing comma" {
     };
 
     const errors = [_]ParserError{
-        ParserError.ExpectedIdentifier,
-        ParserError.InvalidPrefix,
+        error.ExpectedIdentifier,
+        error.InvalidPrefix,
     };
 
     for (src, errors) |input, expected| {

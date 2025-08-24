@@ -4,7 +4,7 @@ const TokenTag = @import("token.zig").Tag;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
-pub const ToStringError = Allocator.Error || std.fmt.AllocPrintError;
+pub const OutOfMemory = Allocator.Error || std.fmt.AllocPrintError;
 
 pub const Program = struct {
     statements: ArrayList(Statement),
@@ -16,17 +16,16 @@ pub const Program = struct {
         }
     }
 
-    // pub fn toString(self: Program, allocator: Allocator) ![]u8 {
-    //     var list = ArrayList(u8).init(allocator);
-    //     defer list.deinit();
-    //     for (self.statements.items) |stmt| {
-    //         const str = try stmt.toString(allocator);
-    //         const s = try std.fmt.allocPrint(allocator, "{s}\n", .{str});
-    //         try list.appendSlice(s);
-    //     }
-    //     const s = try std.fmt.allocPrint(allocator, "{s}", .{list.items});
-    //     return s;
-    // }
+    pub fn toString(self: Program, allocator: Allocator) ![]u8 {
+        var list = ArrayList(u8).init(allocator);
+        defer list.deinit();
+        for (self.statements.items) |stmt| {
+            const str = try stmt.toString(allocator);
+            try list.appendSlice(str);
+            try list.append('\n');
+        }
+        return std.fmt.allocPrint(allocator, "{s}", .{list.items});
+    }
 };
 
 pub const Statement = union(enum) {
@@ -168,7 +167,7 @@ pub const BlockStatement = struct {
         std.debug.print("}}", .{});
     }
 
-    pub fn toString(self: BlockStatement, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: BlockStatement, allocator: Allocator) OutOfMemory![]u8 {
         var list = ArrayList(u8).init(allocator);
         defer list.deinit();
         try list.appendSlice("{\n");
@@ -247,7 +246,7 @@ pub const PrefixExpression = struct {
         std.debug.print(")", .{});
     }
 
-    pub fn toString(self: PrefixExpression, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: PrefixExpression, allocator: Allocator) OutOfMemory![]u8 {
         const operator = try self.operator.toString(allocator);
         const right = try self.right.toString(allocator);
         const s = try std.fmt.allocPrint(allocator, "({s}{s})", .{ operator, right });
@@ -270,7 +269,7 @@ pub const InfixExpression = struct {
         std.debug.print(")", .{});
     }
 
-    pub fn toString(self: InfixExpression, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: InfixExpression, allocator: Allocator) OutOfMemory![]u8 {
         const left = try self.left.toString(allocator);
         const operator = try self.operator.toString(allocator);
         const right = try self.right.toString(allocator);
@@ -311,7 +310,7 @@ pub const IfExpression = struct {
         }
     }
 
-    pub fn toString(self: IfExpression, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: IfExpression, allocator: Allocator) OutOfMemory![]u8 {
         const condition = try self.condition.toString(allocator);
         const then_block = try self.then_branch.toString(allocator);
         var str: []u8 = undefined;
@@ -342,7 +341,7 @@ pub const FunctionLiteral = struct {
         self.body.print();
     }
 
-    pub fn toString(self: FunctionLiteral, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: FunctionLiteral, allocator: Allocator) OutOfMemory![]u8 {
         var list = ArrayList(u8).init(allocator);
         defer list.deinit();
         if (self.parameters) |parameters| {
@@ -389,7 +388,7 @@ pub const Call = struct {
         std.debug.print(")", .{});
     }
 
-    pub fn toString(self: Call, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: Call, allocator: Allocator) OutOfMemory![]u8 {
         const callee = try self.callee.toString(allocator);
 
         var list = ArrayList(u8).init(allocator);
@@ -425,7 +424,7 @@ pub const ArrayLiteral = struct {
         std.debug.print("]", .{});
     }
 
-    pub fn toString(self: ArrayLiteral, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: ArrayLiteral, allocator: Allocator) OutOfMemory![]u8 {
         var strings = ArrayList(u8).init(allocator);
         defer strings.deinit();
 
@@ -452,7 +451,7 @@ pub const IndexExpression = struct {
         std.debug.print("]", .{});
     }
 
-    pub fn toString(self: IndexExpression, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: IndexExpression, allocator: Allocator) OutOfMemory![]u8 {
         const left = try self.left.toString(allocator);
         const index = try self.index.toString(allocator);
         return std.fmt.allocPrint(allocator, "{s}[{s}]", .{ left, index });
@@ -474,7 +473,7 @@ pub const HashLiteral = struct {
             self.value.print();
         }
 
-        pub fn toString(self: Entry, allocator: Allocator) ToStringError![]u8 {
+        pub fn toString(self: Entry, allocator: Allocator) OutOfMemory![]u8 {
             const key = try self.key.toString(allocator);
             const value = try self.value.toString(allocator);
             return std.fmt.allocPrint(
@@ -501,7 +500,7 @@ pub const HashLiteral = struct {
         std.debug.print("}}", .{});
     }
 
-    pub fn toString(self: HashLiteral, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: HashLiteral, allocator: Allocator) OutOfMemory![]u8 {
         var strings = ArrayList(u8).init(allocator);
         defer strings.deinit();
         if (self.entries) |entries| {

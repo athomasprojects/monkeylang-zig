@@ -11,14 +11,6 @@ const Object = @import("object.zig").Object;
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
-fn nextLine(buffer: []u8) !?[]const u8 {
-    const line = try stdin.readUntilDelimiterOrEof(buffer, '\n');
-    if (builtin.os.tag == .windows) {
-        return std.mem.trimRight(u8, line, "\r");
-    }
-    return line;
-}
-
 pub fn main() !void {
     const greeting = "This is the monkey programming language!\nFeel free to type in commands.";
     if (std.posix.getenv("USER")) |uname| {
@@ -42,59 +34,61 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var buf: [32768]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    var index: usize = 0;
+    var buf: [65536]u8 = @splat(0);
+    var fixed_buf_stream = std.io.fixedBufferStream(&buf);
+    var offset: usize = 0;
 
     var evaluator: Evaluator = .init(allocator);
     var env: Environment = .init(allocator);
 
-    while (true) : (try fbs.seekTo(index)) {
+    outer: while (true) : (try fixed_buf_stream.seekTo(offset)) {
         try stdout.print(">> ", .{});
-
-        stdin.streamUntilDelimiter(fbs.writer(), '\n', fbs.buffer.len) catch |err| {
+        stdin.streamUntilDelimiter(fixed_buf_stream.writer(), '\n', fixed_buf_stream.buffer.len) catch |err| {
             switch (err) {
                 error.NoSpaceLeft, error.StreamTooLong => {
                     // Flush the rest of the line in the buffer.
-                    var discard_buf: [256]u8 = undefined;
+                    var discard_buf: [256]u8 = @splat(0);
                     while (true) {
-                        const read_bytes = try stdin.read(&discard_buf);
-                        if (read_bytes == 0) break;
-                        if (std.mem.indexOfScalar(u8, discard_buf[0..read_bytes], '\n')) |_| {
-                            break;
+                        const num_bytes_read = try stdin.read(&discard_buf);
+                        if (num_bytes_read == 0) break;
+                        if (std.mem.indexOfScalar(u8, discard_buf[0..num_bytes_read], '\n') != null) {
+                            break :outer;
                         }
                     }
-                    break;
                 },
                 else => {
-                    try stdout.print("Error reading input: {any}\n", .{err});
+                    try stdout.print("Error reading input: {s}\n", .{@errorName(err)});
                     break;
                 },
             }
         };
 
-        const source: []const u8 = fbs.buffer[index..fbs.pos];
+        const source: []const u8 = fixed_buf_stream.buffer[offset..fixed_buf_stream.pos];
         if (source.len == 0) {
             try stdout.print("", .{});
         } else if (std.mem.eql(u8, source, "quit")) {
             break;
         } else {
-            index += source.len;
+            offset += source.len;
             var lexer: Lexer = .init(source);
             var parser: Parser = .init(&lexer, allocator);
 
-            // It's ok if we error for input that cannot be parsed for now, as it helps with debugging.
-            // Eventually we'll provide an error message and properly handle the error.
-            var program = try parser.parse();
-            // program.printStatements();
+            var program = parser.parse() catch |err| {
+                try stdout.print("unable parse input: {s}\n", .{@errorName(err)});
+                continue;
+            };
 
-            const obj: *Object = try evaluator.evalProgram(&program, &env);
-            obj.print();
-            try stdout.print("\n", .{});
-
-            // if (parser.parse()) |program| {
-            //     program.printStatements();
-            // } else |err| Parser.printParserError(err);
+            const obj: *Object = evaluator.evalProgram(&program, &env) catch |err| {
+                try stdout.print("unable to evaluate input: {s}\n", .{@errorName(err)});
+                continue;
+            };
+            switch (obj.*) {
+                .let => continue,
+                else => {
+                    obj.print();
+                    try stdout.print("\n", .{});
+                },
+            }
         }
     }
 }

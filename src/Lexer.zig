@@ -5,12 +5,11 @@ const Token = token.Token;
 const ascii = std.ascii;
 const testing = std.testing;
 const expect = testing.expect;
-const ArenaAllocator = std.heap.ArenaAllocator;
 
 input: []const u8 = undefined,
-pos: usize = 0,
-length: usize = 0,
-ch: ?u8 = null,
+pos: usize,
+length: usize,
+ch: ?u8,
 pub const Lexer = @This();
 
 /// Creates a new lexer from the `input`.
@@ -18,9 +17,13 @@ pub fn init(input: []const u8) Lexer {
     return switch (input.len) {
         0 => .{
             .input = input,
+            .pos = 0,
+            .length = 0,
+            .ch = null,
         },
         else => .{
             .input = input,
+            .pos = 0,
             .length = input.len,
             .ch = input[0],
         },
@@ -29,7 +32,11 @@ pub fn init(input: []const u8) Lexer {
 
 /// Updates the lexer state and returns the next token in the stream.
 pub fn nextToken(self: *Lexer) Token {
-    self.skipWhitespace();
+    // Skip whitespace.
+    while (self.ch) |ch| {
+        if (ascii.isWhitespace(ch)) self.advance() else break;
+    }
+
     if (self.ch) |ch| {
         return state: switch (ch) {
             '=' => self.twoCharToken('=', .assign, .equal),
@@ -102,15 +109,8 @@ pub fn nextToken(self: *Lexer) Token {
                 break :state .illegal;
             },
         };
-    } else {
-        return .eof;
     }
-}
-
-fn skipWhitespace(self: *Lexer) void {
-    while (self.ch) |ch| {
-        if (ascii.isWhitespace(ch)) self.advance() else break;
-    }
+    return .eof;
 }
 
 fn advance(self: *Lexer) void {
@@ -135,27 +135,23 @@ fn twoCharToken(self: *Lexer, match: u8, default_token: Token, two_char_token: T
 }
 
 fn takeWhile(self: *Lexer, condition: *const fn (u8) bool) []const u8 {
-    var count: usize = 0;
-    for (self.input[self.pos..self.length]) |ch| {
-        if (condition(ch)) count += 1 else break;
+    var offset: usize = self.pos;
+    while (offset < self.input.len and condition(self.input[offset])) {
+        offset += 1;
     }
-    return self.input[self.pos .. self.pos + count];
+    return self.input[self.pos..offset];
 }
 
 fn readIdentifier(self: *Lexer) Token {
-    const ident = self.takeWhile(isLetterOrUnderscore);
+    const ident = self.takeWhile(isLetterOrNumberOrUnderscore);
     self.pos += ident.len - 1;
     self.advance();
-    return token.keywordToIdentifier(ident);
+    return token.fromIdentifierOrKeyword(ident);
 }
 
 fn readString(self: *Lexer) Token {
     self.advance();
-    const str = self.takeWhile(struct {
-        pub fn call(ch: u8) bool {
-            return !(ch == '"');
-        }
-    }.call);
+    const str = self.takeWhile(notDoubleQuote);
     self.pos += str.len;
     self.advance();
     return if (self.pos >= self.length) .illegal else .{ .string_literal = str };
@@ -172,12 +168,19 @@ fn readNumber(self: *Lexer) Token {
     }
 }
 
-fn isLetterOrUnderscore(ch: u8) bool {
-    // return ch == '_' or ascii.isAlphabetic(ch);
+fn isLetterOrNumberOrUnderscore(ch: u8) bool {
     return switch (ch) {
-        'A'...'Z', 'a'...'z', '_' => true,
+        'A'...'Z',
+        'a'...'z',
+        '0'...'9',
+        '_',
+        => true,
         else => false,
     };
+}
+
+fn notDoubleQuote(ch: u8) bool {
+    return ch != '"';
 }
 
 /// Pretty printing (intended for print debugging).
@@ -215,22 +218,25 @@ test "Lexer - init lexer" {
         \\baz =!= 420
         \\"string"
     ;
-    const lexers = [_]Lexer{ .init(""), .init(input) };
-    const vals = [_]Lexer{
+    const sources = [_][]const u8{ "", input };
+    const results = [_]Lexer{
         .{
             .input = "",
             .pos = 0,
+            .length = 0,
             .ch = null,
         },
         .{
             .input = input,
             .pos = 0,
-            .ch = input[0],
             .length = input.len,
+            .ch = input[0],
         },
     };
-    for (lexers, vals) |lexer, val| {
-        try expect(std.meta.eql(lexer, val));
+    for (sources, results) |source, expected| {
+        const lexer: Lexer = .init(source);
+        try expect(std.meta.eql(expected, lexer));
+        try testing.expectEqualStrings(source, lexer.input);
     }
 }
 

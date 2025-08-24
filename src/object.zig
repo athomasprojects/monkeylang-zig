@@ -3,7 +3,7 @@ const ast = @import("ast.zig");
 const Environment = @import("environment.zig").Environment;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
-const ToStringError = ast.ToStringError;
+const OutOfMemory = ast.OutOfMemory;
 const EvaluatorError = @import("Evaluator.zig").EvaluatorError;
 const BuiltinTagType = @import("builtins.zig").TagType;
 
@@ -18,10 +18,12 @@ pub const Object = union(enum) {
     builtin: BuiltinFunction,
     array: ArrayLiteral,
     hash: Hash,
+    let,
 
     pub fn print(self: Object) void {
         switch (self) {
             .null_ => std.debug.print("null", .{}),
+            .let => std.debug.print("", .{}),
             .integer => |integer| std.debug.print("{d}", .{integer}),
             .boolean => |boolean| std.debug.print("{}", .{boolean}),
             .string => |string| std.debug.print("\"{s}\"", .{string}),
@@ -37,6 +39,7 @@ pub const Object = union(enum) {
     pub fn toString(self: Object, allocator: Allocator) ![]u8 {
         return switch (self) {
             .null_ => try std.fmt.allocPrint(allocator, "null", .{}),
+            .let => "",
             .integer => |integer| try std.fmt.allocPrint(
                 allocator,
                 "{d}",
@@ -64,6 +67,7 @@ pub const Object = union(enum) {
     pub fn typeName(self: Object) []const u8 {
         return switch (self) {
             .null_ => "NULL",
+            .let => "LET BINDING",
             .integer => "INTEGER",
             .boolean => "BOOLEAN",
             .string => "STRING",
@@ -100,7 +104,7 @@ pub const Function = struct {
         self.body.print();
     }
 
-    pub fn toString(self: Function, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: Function, allocator: Allocator) OutOfMemory![]u8 {
         var list = ArrayList(u8).init(allocator);
         defer list.deinit();
         if (self.parameters) |parameters| {
@@ -112,7 +116,7 @@ pub const Function = struct {
             }
         }
         const body = try self.body.toString(allocator);
-        return try std.fmt.allocPrint(allocator, "fn({s}) {s}", .{ list.items, body });
+        return std.fmt.allocPrint(allocator, "fn({s}) {s}", .{ list.items, body });
     }
 };
 
@@ -124,7 +128,7 @@ pub const Error = struct {
     }
 
     pub fn toString(self: Error, allocator: Allocator) ![]u8 {
-        return try std.fmt.allocPrint(allocator, "{s}", .{self.message});
+        return std.fmt.allocPrint(allocator, "{s}", .{self.message});
     }
 };
 
@@ -133,15 +137,15 @@ pub const BuiltinFunction = struct {
     tag: BuiltinTagType,
 
     pub fn call(self: BuiltinFunction, allocator: Allocator, args: []*Object) !*Object {
-        return try self.func(allocator, args);
+        return self.func(allocator, args);
     }
 
     pub fn print(self: BuiltinFunction) void {
         std.debug.print("BuiltinFunction#{s}", .{@tagName(self.tag)});
     }
 
-    pub fn toString(self: BuiltinFunction, allocator: Allocator) ToStringError![]u8 {
-        return try std.fmt.allocPrint(
+    pub fn toString(self: BuiltinFunction, allocator: Allocator) OutOfMemory![]u8 {
+        return std.fmt.allocPrint(
             allocator,
             "BuiltinFunction#{s}",
             .{@tagName(self.tag)},
@@ -165,7 +169,7 @@ pub const ArrayLiteral = struct {
         std.debug.print("]", .{});
     }
 
-    pub fn toString(self: ArrayLiteral, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: ArrayLiteral, allocator: Allocator) OutOfMemory![]u8 {
         var strings = ArrayList(u8).init(allocator);
         defer strings.deinit();
 
@@ -286,7 +290,7 @@ pub const Hash = struct {
         std.debug.print("}}", .{});
     }
 
-    pub fn toString(self: Hash, allocator: Allocator) ToStringError![]u8 {
+    pub fn toString(self: Hash, allocator: Allocator) OutOfMemory![]u8 {
         var strings = ArrayList(u8).init(allocator);
         defer strings.deinit();
         if (self.pairs) |pairs| {

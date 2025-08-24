@@ -1,7 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
 const expect = testing.expect;
-const ArenaAllocator = std.heap.ArenaAllocator;
 
 pub const Tag = enum {
     identifier,
@@ -231,7 +230,7 @@ const keywords = std.StaticStringMap(Token).initComptime(.{
 });
 
 /// Returns the corresponding keyword token if the string is a keyword, otherwise returns and identifier token.
-pub fn keywordToIdentifier(str: []const u8) Token {
+pub fn fromIdentifierOrKeyword(str: []const u8) Token {
     return keywords.get(str) orelse Token{ .identifier = str };
 }
 
@@ -239,8 +238,15 @@ pub fn keywordToIdentifier(str: []const u8) Token {
 test "lookup keywords" {
     const strings = [_][]const u8{ "let", "fn", "if", "else", "true", "false", "return" };
     for (strings) |str| {
-        const result = switch (keywordToIdentifier(str)) {
-            .keyword_let, .keyword_function, .keyword_if, .keyword_else, .keyword_true, .keyword_false, .keyword_return => true,
+        const result = switch (fromIdentifierOrKeyword(str)) {
+            .keyword_let,
+            .keyword_function,
+            .keyword_if,
+            .keyword_else,
+            .keyword_true,
+            .keyword_false,
+            .keyword_return,
+            => true,
             else => false,
         };
         try expect(result);
